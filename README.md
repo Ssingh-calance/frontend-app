@@ -18,17 +18,17 @@ Define all the environment variables that your project needs
 
 ## Running the project
 Write the commands and run instructions for the project under the following headers
-# Local
+### Local
 Commands to run the command in local along with some brief instructions
 
-# Docker
+### Docker
 Commands to build image and run in local along with some brief instructions. Specify the path to Dockerfile and context relative to the root of the project
 
 ## Debugging the code
-# Debug tool used
+### Debug tool used
 Specify which debugging tool is used along with link or instructions on how to use it.
 
-# Debug instructions
+### Debug instructions
 Specify the debugging instructions and how to install all the dependencies
 
 ## Testing
