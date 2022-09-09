@@ -1,0 +1,56 @@
+name: Deploy to Kubernetes
+
+on:
+  workflow_dispatch:
+    inputs:
+      repository_name:
+        description: 'Enter repository name:'
+        required: true
+        type: string
+      cluster_environment:
+        description: 'Which environment you want to deploy?'
+        required: true
+        type: choice
+        options:
+        - "testing"
+        - "production"
+      version:
+        description: 'Enter the application version:'
+        required: true
+        type: string
+      namespace:
+        required: true
+        description: 'Enter the application namespace:'
+        type: string
+
+  workflow_call:
+    inputs:
+      repository_name:
+        description: 'Enter repository name:'
+        required: true
+        type: string
+      cluster_environment:
+        description: 'Which environment you want to deploy?'
+        required: true
+        type: string
+      version:
+        description: 'Enter the application version:'
+        required: true
+        type: string
+      namespace:
+        required: true
+        description: 'Enter the application namespace:'
+        type: string
+
+jobs:
+  trigger-jenkins-job:
+    runs-on: ubuntu-latest
+    steps:                                
+      - name: Trigger Jenkins Job
+        uses: prempratap09/build-jenkins-job@master
+        with:
+          jenkins-url: ${{ secrets.JENKINS_URL }}
+          jenkins-token: ${{ secrets.JENKINS_TOKEN }}
+          user: ${{ secrets.JENKINS_USER }}
+          job-path: "job/kubernetes-deploy-on-nutanix"
+          job-params: '{"SERVICE_NAME" : "${{ inputs.repository_name }}", "CLUSTER_ENVIRONMENT": "${{ inputs.cluster_environment }}" , "VERSION": "${{ inputs.version }}", "NAMESPACE": "${{ inputs.namespace }}" }'

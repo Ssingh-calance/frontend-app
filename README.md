@@ -1,3 +1,6 @@
+[![GitHub Super-Linter](https://github.com/Calance-US/public-repository-template/workflows/Lint%20Code%20Base/badge.svg)](https://github.com/marketplace/actions/super-linter)
+
+
 ## :black_nib: Project Title
 *Write about the project in a small paragraph*
 
