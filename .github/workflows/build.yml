@@ -8,4 +8,6 @@ on:
 jobs:
   ci-cd:
     runs-on: ubuntu-latest
-    uses: Calance-US/calance-workflows/.github/workflows/build.yml@main
+    steps:
+      - name: Run generic CI-CD workflow
+        uses: Calance-US/calance-workflows/.github/workflows/build.yml@main
