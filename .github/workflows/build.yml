@@ -8,7 +8,6 @@ on:
 jobs:
   ci-cd:
     uses: Calance-US/calance-workflows/.github/workflows/build.yml@test
-    #    with:
     secrets:
       NAMESPACE: ${{ secrets.NAMESPACE }}
       JENKINS_URL: ${{ secrets.JENKINS_URL }}
