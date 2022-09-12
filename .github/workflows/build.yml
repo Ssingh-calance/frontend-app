@@ -8,3 +8,15 @@ on:
 jobs:
   ci-cd:
     uses: Calance-US/calance-workflows/.github/workflows/build.yml@test
+    #    with:
+    secrets:
+      NAMESPACE: ${{ secrets.NAMESPACE }}
+      JENKINS_URL: ${{ secrets.JENKINS_URL }}
+      JENKINS_USER: ${{ secrets.JENKINS_USER }}
+      JENKINS_TOKEN: ${{ secrets.JENKINS_TOKEN }}
+      #      jenkins-url: "${{ secrets.JENKINS_URL }}"
+      #      jenkins-token: "${{ secrets.JENKINS_TOKEN }}"
+      #      user: "${{ secrets.JENKINS_USER }}"
+      #      job-path: "job/kubernetes-deploy-on-nutanix"
+      #      job-params: '{"SERVICE_NAME" : "${{ inputs.repository_name }}", "CLUSTER_ENVIRONMENT": "${{ inputs.cluster_environment }}" , "VERSION": "${{ inputs.version }}", "NAMESPACE": "${{ secrets.namespace }}" }'
+
