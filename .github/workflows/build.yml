@@ -7,13 +7,11 @@ on:
 
 jobs:
   ci-cd:
-    #uses: Calance-US/calance-workflows/.github/workflows/build.yml@main
-    uses: Calance-US/calance-workflows/.github/workflows/build.yml@1-created-reusable-workflow-for-triggering-jenkins-job
+    uses: Calance-US/calance-workflows/.github/workflows/build.yml@main
 
   deploy-to-kubernetes:
     needs: ci-cd
-    #uses: Calance-US/calance-workflows/.github/workflows/deploy.yml@main
-    uses: Calance-US/calance-workflows/.github/workflows/deploy.yml@1-created-reusable-workflow-for-triggering-jenkins-job
+    uses: Calance-US/calance-workflows/.github/workflows/deploy.yml@main
     with:
       repository_name: ${{ github.event.repository.name }}
       version: ${{ needs.ci-cd.outputs.version }}
