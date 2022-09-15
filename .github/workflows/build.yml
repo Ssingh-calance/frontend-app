@@ -7,9 +7,22 @@ on:
 
 jobs:
   ci-cd:
-    uses: Calance-US/calance-workflows/.github/workflows/build.yml@test
+    uses: Calance-US/calance-workflows/.github/workflows/build.yml@1-created-reusable-workflow-for-triggering-jenkins-job
     secrets:
       NAMESPACE: ${{ secrets.NAMESPACE }}
+      JENKINS_URL: ${{ secrets.JENKINS_URL }}
+      JENKINS_USER: ${{ secrets.JENKINS_USER }}
+      JENKINS_TOKEN: ${{ secrets.JENKINS_TOKEN }}
+
+  deploy-to-kubernetes:
+  needs: ci-cd
+    uses: Calance-US/calance-workflows/.github/workflows/deploy.yml@1-created-reusable-workflow-for-triggering-jenkins-job
+    with:
+      repository_name: ${{ github.event.repository.name }}
+      version: ${{ needs.ci-cd.outputs.version }}
+      cluster_environment: ${{ needs.ci-cd.outputs.cluster_environment }}
+    secrets:
+      namespace: ${{ secrets.NAMESPACE }}
       JENKINS_URL: ${{ secrets.JENKINS_URL }}
       JENKINS_USER: ${{ secrets.JENKINS_USER }}
       JENKINS_TOKEN: ${{ secrets.JENKINS_TOKEN }}
