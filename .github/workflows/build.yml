@@ -8,3 +8,16 @@ on:
 jobs:
   ci-cd:
     uses: Calance-US/calance-workflows/.github/workflows/build.yml@main
+
+  deploy-to-kubernetes:
+    needs: ci-cd
+    uses: Calance-US/calance-workflows/.github/workflows/deploy.yml@main
+    with:
+      repository_name: ${{ github.event.repository.name }}
+      version: ${{ needs.ci-cd.outputs.version }}
+      cluster_environment: ${{ needs.ci-cd.outputs.cluster_environment }}
+    secrets:
+      NAMESPACE: ${{ secrets.NAMESPACE }}
+      JENKINS_URL: ${{ secrets.JENKINS_URL }}
+      JENKINS_USER: ${{ secrets.JENKINS_USER }}
+      JENKINS_TOKEN: ${{ secrets.JENKINS_TOKEN }}
