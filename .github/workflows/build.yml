@@ -1,21 +1,45 @@
-name: Continuous integration and delivery
+name: Ci-Cd
 on:
   push:
     tags:
-      - v[0-9]+.[0-9]+.[0-9]+-rc[0-9]+
-      - v[0-9]+.[0-9]+.[0-9]+
+    - v[0-9]+.[0-9]+.[0-9]+-rc[0-9]+
+    - v[0-9]+.[0-9]+.[0-9]+
 
 jobs:
-  ci-cd:
+  build-and-push-dockerimages:
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [service-name]
+    permissions:
+      contents: read
+      packages: write
+    secrets:
+      GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+      REPOSITORY_OWNER: ${{ secrets.REPOSITORY_OWNER }}
     uses: Calance-US/calance-workflows/.github/workflows/build.yml@main
+    with:
+      image_name: ${{ matrix.project }}
+      docker_context_path: calance-hr/
+      dockerfile_path: calance-hr/Dockerfile
 
   deploy-to-kubernetes:
-    needs: ci-cd
+    needs: build-and-push-dockerimages
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [service-name]
+    permissions:
+      contents: read
+      packages: write
     uses: Calance-US/calance-workflows/.github/workflows/deploy.yml@main
     with:
+      env_specific_namespaces: true
       repository_name: ${{ github.event.repository.name }}
-      version: ${{ needs.ci-cd.outputs.version }}
-      cluster_environment: ${{ needs.ci-cd.outputs.cluster_environment }}
+      image_name: ${{ matrix.project }}
+      version: ${{ needs.build-and-push-dockerimages.outputs.version }}
+      release_name: ${{ matrix.project }}
+      cluster_environment: ${{ needs.build-and-push-dockerimages.outputs.cluster_environment }}
     secrets:
       NAMESPACE: ${{ secrets.NAMESPACE }}
       JENKINS_URL: ${{ secrets.JENKINS_URL }}
