@@ -7,10 +7,6 @@ on:
 
 jobs:
   build-and-push-dockerimages:
-    strategy:
-      fail-fast: false
-      matrix:
-        project: [service-name]
     permissions:
       contents: read
       packages: write
@@ -19,16 +15,12 @@ jobs:
       REPOSITORY_OWNER: ${{ secrets.REPOSITORY_OWNER }}
     uses: Calance-US/calance-workflows/.github/workflows/build.yml@main
     with:
-      image_name: ${{ matrix.project }}
-      docker_context_path: calance-hr/
-      dockerfile_path: calance-hr/Dockerfile
+      image_name: service_name
+      docker_context_path: service_name/
+      dockerfile_path: service_name/Dockerfile
 
   deploy-to-kubernetes:
     needs: build-and-push-dockerimages
-    strategy:
-      fail-fast: false
-      matrix:
-        project: [service-name]
     permissions:
       contents: read
       packages: write
@@ -36,9 +28,9 @@ jobs:
     with:
       env_specific_namespaces: true
       repository_name: ${{ github.event.repository.name }}
-      image_name: ${{ matrix.project }}
+      image_name: ${{ service_name }}
       version: ${{ needs.build-and-push-dockerimages.outputs.version }}
-      release_name: ${{ matrix.project }}
+      release_name: ${{ service_name }}
       cluster_environment: ${{ needs.build-and-push-dockerimages.outputs.cluster_environment }}
     secrets:
       NAMESPACE: ${{ secrets.NAMESPACE }}
