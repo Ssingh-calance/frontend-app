@@ -1,4 +1,4 @@
-name: Ci-Cd
+name: CI-CD
 on:
   push:
     tags:
@@ -18,6 +18,9 @@ jobs:
       image_name: service_name
       docker_context_path: service_name/
       dockerfile_path: service_name/Dockerfile
+      #dot_env_file_testing:  .
+      #dot_env_file_production: .
+      #branch_name: .
 
   deploy-to-kubernetes:
     needs: build-and-push-dockerimages
