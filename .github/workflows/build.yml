@@ -16,9 +16,7 @@ jobs:
       # Secret for Github Container Registry
       GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
 
-      # Username of GHCR Owner
-      REPOSITORY_OWNER: ${{ secrets.REPOSITORY_OWNER }}
-    uses: Calance-US/calance-workflows/.github/workflows/build.yml@v1.0.2
+    uses: Calance-US/calance-workflows/.github/workflows/build.yml@v1.0.5
     with:
       # Name for the image that will be built (Defaults to repository name)
       image_name: service_name
@@ -43,7 +41,7 @@ jobs:
     permissions:
       contents: read
       packages: write
-    uses: Calance-US/calance-workflows/.github/workflows/deploy.yml@v1.0.2
+    uses: Calance-US/calance-workflows/.github/workflows/deploy.yml@v1.0.5
     with:
       # Enable generating namespace value according to the cluster-environment (Defaults to false)
       env_specific_namespaces: true
@@ -63,9 +61,6 @@ jobs:
       # Cluster environment to deploy your image
       cluster_environment: ${{ needs.build-and-push-dockerimages.outputs.cluster_environment }}
     secrets:
-      # Cluster namespace in which application is going to be deployed
-      NAMESPACE: ${{ secrets.NAMESPACE }}
-
       # Domain Name of Jenkins 
       JENKINS_URL: ${{ secrets.JENKINS_URL }}
 
