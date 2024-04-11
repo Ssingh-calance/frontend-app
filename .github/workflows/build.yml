@@ -7,11 +7,65 @@ on:
       - v[0-9]+.[0-9]+.[0-9]+
 
 jobs:
+  vulnerability-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code # action to fetch the code from repo.
+        uses: actions/checkout@v3
+      - name: Build an image from Dockerfile # builds the image.
+        run: |
+          docker build -t docker.io/my-organization/my-app:${{ github.sha }} .
+      - name: Run Trivy vulnerability scanner # runs the scanner.
+        uses: aquasecurity/trivy-action@7b7aa264d83dc58691451798b4d117d53d21edfe
+        with:
+          image-ref: docker.io/my-organization/my-app:${{ github.sha }}
+          format: table
+          output: trivy-results.json
+          severity: CRITICAL,HIGH,MEDIUM,LOW
+      - name: Get the scan result as Json format
+        uses: aquasecurity/trivy-action@7b7aa264d83dc58691451798b4d117d53d21edfe
+        with:
+          image-ref: docker.io/my-organization/my-app:${{ github.sha }}
+          format: json
+          output: trivy-results-json-format.json
+          severity: CRITICAL,HIGH
+      - name: Extracting Vulnerability index for Notification
+        run: |
+          python3 -m pip install -U pip
+          pip install prettytable
+          ls -ltrh 
+          python extract_vulnerability.py
+        env:
+          server_address: ${{secrets.SMTP_HOST}}
+          server_port: ${{secrets.SMTP_PORT}}
+          username: ${{secrets.SMTP_USER}}
+          password: ${{secrets.SMTP_PASS}}
+          sender: ${{secrets.SENDER_EMAIL}}
+          repository: ${{github.event.repository.name}}
+          tag: ${{github.ref_name}}
+
+      - name: Upload Trivy scan results as an artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: trivy-results
+          path: ${{ github.workspace }}/trivy-results.json
+      - name: Vulnerability Data as an Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: trivy-vulnerability
+          path: ${{ github.workspace }}/vulnerabilities.json
+      - name: Upload Json formated result
+        uses: actions/upload-artifact@v2
+        with:
+          name: Json Format
+          path: ${{ github.workspace }}/trivy-results-json-format.json
+
   build-and-push-dockerimages:
+    needs: vulnerability-scan
     permissions:
       contents: read
       packages: write
-    secrets:  
+    secrets:
       # Secret for used Image Registry
       IMAGE_REGISTRY_PASSWORD: ${{ secrets.IMAGE_REGISTRY_PASSWORD }}
 
@@ -64,7 +118,7 @@ jobs:
       release_name: service_name
 
       # Service Name of the Application (Defaults to "${{ github.event.repository.name }}")
-      service_name: service_name 
+      service_name: service_name
 
       # Latest Commit id of deployed tag or branch
       commit_id: ${{ needs.build-and-push-dockerimages.outputs.commit_id }}
