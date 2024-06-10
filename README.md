@@ -1,6 +1,5 @@
 [![GitHub Super-Linter](https://github.com/Calance-US/public-repository-template/workflows/Lint%20Code%20Base/badge.svg)](https://github.com/marketplace/actions/super-linter)
 
-
 ## :black_nib: Project Title
 *Write about the project in a small paragraph*
 
@@ -43,9 +42,9 @@
 Want to reach out to the folks who have tirelessly worked on this project, please reach out to the following folks.
 
 **Project Manager/s:**
-- [Manager-Name1](Github profile url of Manager1)
-- [Manager-Name2](Github profile url of Manager2)
+- [Manager-Name1](GitHub profile URL of Manager1)
+- [Manager-Name2](GitHub profile URL of Manager2)
 
 **Developer/s:**
-- [Developer-1](Github profile url of developer-1)
-- [Developer-2](Github profile url of developer-2)
+- [Developer-1](GitHub profile URL of developer-1)
+- [Developer-2](GitHub profile URL of developer-2)

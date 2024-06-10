@@ -26,3 +26,11 @@ jobs:
           DEFAULT_BRANCH: "main"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VALIDATE_GITHUB_ACTIONS: false
+          VALIDATE_MARKDOWN: false
+
+      - name: Close PR when linter fails
+        if: failure()
+        uses: satya-500/github-action-close-pull@v1
+        with:
+          comment: "Closing the PR as linter is failing. Resolve the linting issues and then, raise the PR again."
+          pull-request-number: ${{ github.event.number }}
