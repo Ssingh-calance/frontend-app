@@ -15,7 +15,7 @@ jobs:
       # Secret for used Image Registry
       IMAGE_REGISTRY_PASSWORD: ${{ secrets.IMAGE_REGISTRY_PASSWORD }}
 
-    uses: Calance-US/calance-workflows/.github/workflows/build.yml@v2.0.0
+    uses: Calance-US/calance-workflows/.github/workflows/build.yml@v3.0.1
     with:
       # Name for the image that will be built (Defaults to repository name)
       image_name: service_name
@@ -49,7 +49,7 @@ jobs:
     permissions:
       contents: read
       packages: write
-    uses: Calance-US/calance-workflows/.github/workflows/deploy-on-ec2.yml@v2.0.0
+    uses: Calance-US/calance-workflows/.github/workflows/deploy-on-ec2.yml@v3.0.1
     with:
         # Name for the image that will be built
         image_name: service_name
@@ -101,6 +101,12 @@ jobs:
 
         # Log Driver Options (For multiple log driver options, add a comma seperated string)
         log_driver_options: log_driver_options
+
+        # Email IDs of Code Owners to notify about the deployment
+        codeowners_email_ids: codeowners_email_ids
+
+        # Email IDs of DevOps Stakeholders to notify about the deployment
+        devops_stakeholders_email_ids: devops_stakeholders_email_ids
 
     secrets:
       # Domain Name of Jenkins

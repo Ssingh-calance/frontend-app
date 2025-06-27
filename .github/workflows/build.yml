@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code # action to fetch the code from repo.
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Build an image from Dockerfile # builds the image.
         run: |
           docker build -t docker.io/my-organization/my-app:${{ github.sha }} .
@@ -45,17 +45,17 @@ jobs:
           tag: ${{github.ref_name}}
 
       - name: Upload Trivy scan results as an artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: trivy-results
           path: ${{ github.workspace }}/trivy-results.json
       - name: Vulnerability Data as an Artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: trivy-vulnerability
           path: ${{ github.workspace }}/vulnerabilities.json
       - name: Upload Json formated result
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: Json Format
           path: ${{ github.workspace }}/trivy-results-json-format.json
@@ -69,7 +69,7 @@ jobs:
       # Secret for used Image Registry
       IMAGE_REGISTRY_PASSWORD: ${{ secrets.IMAGE_REGISTRY_PASSWORD }}
 
-    uses: Calance-US/calance-workflows/.github/workflows/build.yml@v2.0.0
+    uses: Calance-US/calance-workflows/.github/workflows/build.yml@v3.0.1
     with:
       # Name for the image that will be built (Defaults to repository name)
       image_name: service_name
@@ -103,7 +103,7 @@ jobs:
     permissions:
       contents: read
       packages: write
-    uses: Calance-US/calance-workflows/.github/workflows/deploy.yml@v2.0.0
+    uses: Calance-US/calance-workflows/.github/workflows/deploy.yml@v3.0.1
     with:
       # Name of the repository
       repository_name: ${{ github.event.repository.name }}
@@ -140,6 +140,12 @@ jobs:
 
       # Name of repository that has helm values files
       helm_values_repository: helm_values_repository
+
+      # Email IDs of Code Owners to notify about the deployment
+      codeowners_email_ids: codeowners_email_ids
+
+      # Email IDs of DevOps Stakeholders to notify about the deployment
+      devops_stakeholders_email_ids: devops_stakeholders_email_ids
     secrets:
       # Domain Name of Jenkins
       JENKINS_URL: ${{ secrets.JENKINS_URL }}
@@ -149,3 +155,6 @@ jobs:
 
       # Token of Jenkins
       JENKINS_TOKEN: ${{ secrets.JENKINS_TOKEN }}
+
+      ## Password for SMTP server to send email notifications
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}

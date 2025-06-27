@@ -1,0 +1,116 @@
+name: Test code quality via SonarQube
+on:
+  pull_request:
+    branches:
+      - main
+      - dev
+      - release-*
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+
+      - name: sonarqube scan 
+        uses: sonarsource/sonarqube-scan-action@master
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+      - name: sonarqube quality check
+        uses: sonarsource/sonarqube-quality-gate-action@master
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+            registry: ghcr.io
+            username: ${{ secrets.REPOSITORY_OWNER }}
+            password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Build and run Docker container
+        run: |
+          docker run -v ${{ github.workspace }}/report:/app/report --name report -e KEY_NAME=${{ secrets.PROJECT_KEY }} ghcr.io/calance-us/sonar-report:0.0.0
+      
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sonar-Report
+          path: ${{ github.workspace }}/report/sonar_report.pdf
+
+      - name: Add artifact link comment
+        uses: actions/github-script@v4
+        with:
+          github-token: ${{ secrets.GHCR_TOKEN }}
+          script: |
+              const artifactURL = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${{ github.run_id }}`;
+              const comment = `Artifact uploaded: [Download Here](${artifactURL})`;
+              const { data: pullRequest } = await github.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.payload.pull_request.number
+              });
+              await github.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pullRequest.number,
+                body: comment
+              });
+      
+      - name: Send mail
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_HOST }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: SonarQube Scan Completed - Report Attached
+          to: ${{ vars.RECEIVER_MAIL }}
+          from: ${{ secrets.SENDER_EMAIL }}
+          body: Build job of ${{ github.repository }} completed successfully!
+          html_body: |
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <title>GitHub Actions Email</title>
+              <style>
+              table {
+              font-family: arial, sans-serif;
+              border-collapse: collapse;
+              width: 100%;
+              }
+              td, th {
+              border: 1px solid #dddddd;
+              text-align: left;
+              padding: 8px;
+              }
+              tr:nth-child(even) {
+              background-color: #dddddd;
+              }
+             </style>
+            </head>
+            <body>
+              <h2>GitHub Actions Notification</h2>
+              <p> This is an automated notification to inform you that a recent SonarQube scan of our codebase has been successfully completed. We are pleased to provide you with the code analysis report for your review and action.</p>
+              <h3>Repository Information:</h3>
+                <ul>
+                  <li><b>Repository Name:</b> ${{ github.event.repository.name }}</li>
+                  <li><b>Branch Name:</b> ${{ github.event.repository.default_branch }}</li>
+                  <li><b>Tag:</b> ${{ github.ref_name }}</li>
+                </ul>
+              <p> This comprehensive report provides an in-depth analysis of the codebase, highlighting potential issues, vulnerabilities, and areas for improvement. It also includes detailed recommendations on how to address the identified issues and enhance the overall code quality.</p>
+              <p> Please take the time to review the report and address any identified issues promptly. If you have any questions or need assistance with understanding or remedying the reported issues, do not hesitate to reach out to our DevOps team.</p>   
+            </body>
+            </html>
+          cc: NKashyap@itrnetwork.com
+          ignore_cert: true
+          convert_markdown: true
+          attachments: ${{ github.workspace }}/report/sonar_report.pdf
+          priority: low
