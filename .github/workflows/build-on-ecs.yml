@@ -1,0 +1,104 @@
+name: CI-CD on ECS Cluster
+on:
+  push: 
+    tags:
+      - v[0-9]+.[0-9]+.[0-9]+-rc[0-9]+
+      - v[0-9]+.[0-9]+.[0-9]+
+
+jobs:
+  build-and-push-dockerimages:
+    permissions:
+      contents: read
+      packages: write
+      
+    uses: Calance-US/calance-workflows/.github/workflows/build.yml@3.0.2
+    with:
+      # Name for the image that will be built (Defaults to repository name)
+      image_name: organization_name/repo_name
+
+      # Docker Context Path (Defaults to .)
+      docker_context_path: organization_name/repo_name/
+
+      # Path to the Dockerfile (Defaults to ./Dockerfile)
+      dockerfile_path: organization_name/repo_name/Dockerfile
+
+      # AWS region - ECR specific
+      aws_region: us-east-1
+
+      # Build time environment variables as multiline string for testing environment (Defaults to "")
+      dot_env_file_testing: ""
+
+      # Build time environment variables as multiline string for production environment (Defaults to "")
+      dot_env_file_production: ""
+
+      # Build time environment variables as multiline string for production environment (Defaults to "")
+      dot_env_file_dev: ""
+
+      # Branch that we want to build (Defaults to branch which triggered the workflow)
+      branch_name: ""
+
+      # Image Registry Name ghcr.io or amazonaws.com
+      image_registry: ${{ vars.IMAGE_REGISTRY }} # ghcr.io or amazonaws.com
+
+      # Username of used Image Registry for logging
+      image_registry_username: ${{ vars.IMAGE_REGISTRY_USERNAME }}
+  
+    secrets:
+      # GHCR specific: GHCR password
+      IMAGE_REGISTRY_PASSWORD: ${{ secrets.IMAGE_REGISTRY_PASSWORD }}
+
+      # AWS specific: AWS access id and secret key
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+  deploy-to-aws-ecs:
+    needs: build-and-push-dockerimages
+    permissions:
+      contents: read
+      packages: write
+    uses: Calance-US/calance-workflows/.github/workflows/deploy-on-ecs.yml@3.0.2
+    with:
+        image_name: organization_name/repo_name
+
+        # Service/Repository Name of Application (Defaults to ${{ github.event.repository.name }})
+        service_name: repo_name
+
+        # Release Name of Application
+        release_name: repo_name
+
+        # Application version that need to be deployed
+        version: ${{ needs.build-and-push-dockerimages.outputs.version }}
+
+        # Cluster environment to deploy your image
+        cluster_environment: ${{ needs.build-and-push-dockerimages.outputs.cluster_environment }} # testing OR production
+
+        # AWS Region Name
+        aws_region: us-east-1
+        
+        # Email IDs of Code Owners to notify about the deployment
+        codeowners_email_ids: codeowners_email_ids
+
+        # Email IDs of DevOps Stakeholders to notify about the deployment
+        devops_stakeholders_email_ids: devops_stakeholders_email_ids
+
+        # Cluster name to deploy in
+        ecs_cluster: cluster_name
+
+        # Service name to deploy in
+        ecs_service: service_name
+
+        # Nameof the task defination
+        ecs_task_definition_name: task_defination_name
+
+        # Desired count of ECS containers
+        ecs_desired_count: desired_count_of_containers
+
+        # Wait time for stability
+        ecs_wait_time: "10"
+    secrets:
+      # AWS specific: AWS access id and secret key
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      # SMTP password
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}

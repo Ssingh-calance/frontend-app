@@ -5,4 +5,5 @@ USER myuser
 COPY . /app
 RUN pip install --no-cache-dir requests==2.26.0
 HEALTHCHECK --interval=30s --timeout=10s CMD ["curl","-f","http://localhost/health"]
-CMD ["pytest"]
+
+CMD ["python", "-m", "http.server", "8000"]
