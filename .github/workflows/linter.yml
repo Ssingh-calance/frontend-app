@@ -8,7 +8,13 @@ name: Lint Code Base
 
 on:
   pull_request:
-    branches: [ "main", "dev", "release-*" ]
+    branches: ["main", "dev", "release-*"]
+
+permissions:
+  contents: read
+  pull-requests: write
+  statuses: write
+
 jobs:
   run-lint:
     runs-on: ubuntu-latest
@@ -18,15 +24,18 @@ jobs:
         with:
           # Full git history is needed to get a proper list of changed files within `super-linter`
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Lint Code Base
-        uses: github/super-linter/slim@v4
+        uses: super-linter/super-linter/slim@v8.5.0
         env:
           VALIDATE_ALL_CODEBASE: false
           DEFAULT_BRANCH: "main"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VALIDATE_GITHUB_ACTIONS: false
+          VALIDATE_GITHUB_ACTIONS_ZIZMOR: false
           VALIDATE_MARKDOWN: false
+          VALIDATE_BIOME_FORMAT: false
 
       - name: Close PR when linter fails
         if: failure()
