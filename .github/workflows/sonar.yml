@@ -6,6 +6,9 @@ on:
       - dev
       - release-*
 
+permissions:
+  contents: read
+
 jobs:
   build:
     name: Build
@@ -14,9 +17,10 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+          fetch-depth: 0 # Shallow clones should be disabled for a better relevancy of analysis
+          persist-credentials: false
 
-      - name: sonarqube scan 
+      - name: sonarqube scan
         uses: sonarsource/sonarqube-scan-action@master
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -31,14 +35,14 @@ jobs:
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
-            registry: ghcr.io
-            username: ${{ secrets.REPOSITORY_OWNER }}
-            password: ${{ secrets.GHCR_TOKEN }}
+          registry: ghcr.io
+          username: ${{ secrets.REPOSITORY_OWNER }}
+          password: ${{ secrets.GHCR_TOKEN }}
 
       - name: Build and run Docker container
         run: |
           docker run -v ${{ github.workspace }}/report:/app/report --name report -e KEY_NAME=${{ secrets.PROJECT_KEY }} ghcr.io/calance-us/sonar-report:0.0.0
-      
+
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -50,20 +54,20 @@ jobs:
         with:
           github-token: ${{ secrets.GHCR_TOKEN }}
           script: |
-              const artifactURL = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${{ github.run_id }}`;
-              const comment = `Artifact uploaded: [Download Here](${artifactURL})`;
-              const { data: pullRequest } = await github.pulls.get({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: context.payload.pull_request.number
-              });
-              await github.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: pullRequest.number,
-                body: comment
-              });
-      
+            const artifactURL = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${{ github.run_id }}`;
+            const comment = `Artifact uploaded: [Download Here](${artifactURL})`;
+            const { data: pullRequest } = await github.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number
+            });
+            await github.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pullRequest.number,
+              body: comment
+            });
+
       - name: Send mail
         uses: dawidd6/action-send-mail@v3
         with:
