@@ -94,7 +94,7 @@ jobs:
         jenkins_job_name: jenkins_job_name
 
         # Release Tag (If you are using deploy.yml@v2.0.0, then release_tag => v2.0.0)
-        release_tag: release_tag
+        workflows_release: release_tag
 
         # Logging Driver of Container
         log_driver: log_driver
