@@ -1,50 +1,220 @@
 [![GitHub Super-Linter](https://github.com/Calance-US/public-repository-template/workflows/Lint%20Code%20Base/badge.svg)](https://github.com/marketplace/actions/super-linter)
 
-## :black_nib: Project Title
-*Write about the project in a small paragraph*
+# 🖋️ Public Repository Template
 
-## :loop: Workflow
-*Write a brief workflow of the tool along with a graphical flow chart representation*
+This repository provides a **CI/CD-enabled vulnerability scanning and notification system**. It integrates **Trivy**, **SonarQube**, and **GitHub Actions** to automate code quality checks, security analysis, and deployment workflows.
 
-## :page_facing_up: Documentation
-*Specify the link to the project documentation or if using something like a Swagger, Mkdocs, specify instructions to use them*
+A key component of this project is a Python script that processes Trivy scan results and sends email notifications for **HIGH** and **CRITICAL** vulnerabilities.
 
-## :baby: Requirements and Depedencies
-*Project requirements and dependencies need to be highlighted here along with versions*
+---
 
-## :hourglass_flowing_sand: Installation
-*Write installation instructions for the project*
+## 🔁 Workflow
 
-## :cyclone: Environment variables
-*Define all the environment variables that your project needs*
+The project implements an automated pipeline with the following stages:
 
-## :tada: Running the project
-*Write the commands and run instructions for the project under the following headers*
+1. **Code Quality & Linting** – GitHub Super-Linter runs on pull requests
+2. **Security Scanning** – Trivy scans Docker images for vulnerabilities
+3. **Quality Analysis** – SonarQube performs static code analysis
+4. **Build & Deployment** – Docker image is built and deployed
+5. **Notification** – Email alerts sent for critical vulnerabilities
+
+**Workflow Flow:**
+Code Push/PR → Linting → Trivy Scan → SonarQube → Build → Deploy → Email Notification
+
+---
+
+## 📄 Documentation
+
+### GitHub Workflows (`.github/workflows/`)
+
+- `build.yml` – Main CI/CD pipeline
+- `linter.yml` – Code linting
+- `sonar.yml` – SonarQube analysis
+- `build-on-ec2.yml` – EC2-based deployment
+- `build-on-ecs.yml` – ECS-based deployment
+- `stale.yml` – Issue/PR maintenance
+
+### Other Configurations
+
+- `sonar-project.properties` – SonarQube project configuration
+- `receivers.txt` – Email recipients list
+- `extract_vulnerability.py` – Vulnerability processing script
+
+---
+
+## 👶 Requirements and Dependencies
+
+### Core Requirements
+
+- Python 3.9+
+- Docker
+- GitHub Actions
+
+### Python Dependencies
+
+- `requests==2.26.0`
+- `prettytable`
+
+Install dependencies:
+
+```bash
+pip install requests==2.26.0 prettytable
+```
+
+---
+
+## ⏳ Installation
+
+Clone the repository:
+
+```bash
+git clone https://github.com/<org>/public-repository-template.git
+cd public-repository-template
+```
+
+### Configure:
+
+- Update `receivers.txt` with valid email addresses
+- Update `sonar-project.properties`
+- Configure GitHub Secrets
+
+---
+
+## 🌪️ Environment Variables
+
+The following environment variables are required:
+
+```bash
+server_address=<SMTP_HOST>
+server_port=<SMTP_PORT>
+username=<SMTP_USERNAME>
+password=<SMTP_PASSWORD>
+sender=<SENDER_EMAIL>
+repository=<REPO_NAME>
+tag=<IMAGE_TAG>
+```
+
+---
+
+## 🎉 Running the Project
 
 ### Local
-*Commands to run the command in local along with some brief instructions*
+
+Install dependencies:
+
+```bash
+pip install requests==2.26.0 prettytable
+```
+
+Export environment variables:
+
+```bash
+export server_address="smtp.example.com"
+export server_port="587"
+export username="your-username"
+export password="your-password"
+export sender="your-email@example.com"
+export repository="repo-name"
+export tag="latest"
+```
+
+Ensure required files exist:
+
+- `trivy-results-json-format.json`
+- `receivers.txt`
+
+Run:
+
+```bash
+python extract_vulnerability.py
+```
+
+---
 
 ### Docker
-*Commands to build image and run in local along with some brief instructions. Specify the path to Dockerfile and context relative to the root of the project*
 
-## :computer: Debugging the code
+Build image:
 
-### Debug tool used
-*Specify which debugging tool is used along with link or instructions on how to use it*
+```bash
+docker build -t vuln-tool .
+```
+
+Run container:
+
+```bash
+docker run vuln-tool
+```
+
+**Dockerfile Location:** `./Dockerfile`
+**Context:** Root directory
+
+---
+
+## 💻 Debugging the Code
+
+### Debug tools used
+
+- `pdb` (Python debugger)
+- Visual Studio Code / PyCharm
 
 ### Debug instructions
-*Specify the debugging instructions and how to install all the dependencies*
 
-## :flashlight: Testing
-*Specify the testing scenario of the project along with the command to run the tests*
+Run with debugger:
 
-## :information_desk_person: Contributors
-Want to reach out to the folks who have tirelessly worked on this project, please reach out to the following folks.
+```bash
+python -m pdb extract_vulnerability.py
+```
+
+### Common issues
+
+- Missing JSON file → Ensure Trivy output exists
+- SMTP failure → Verify credentials and port
+- No vulnerabilities → Check scan results
+
+---
+
+## 🔦 Testing
+
+### Vulnerability Testing
+
+```bash
+trivy image --format json --output trivy-results-json-format.json <image>
+python extract_vulnerability.py
+```
+
+### Docker Testing
+
+```bash
+docker build -t test-image .
+docker run --rm test-image
+```
+
+**GitHub Actions Testing:**
+
+- Create a test branch and push changes
+- Open a pull request to trigger workflows
+- Check workflow execution in Actions tab
+
+**SonarQube Testing:**
+
+- Ensure SonarQube project is configured
+- Run analysis locally: `sonar-scanner`
+- Verify quality gate status
+
+---
+
+## 🙋 Contributors
+
+To connect with the contributors who worked on this project, please refer to the following:
 
 **Project Manager/s:**
-- [Manager-Name1](GitHub profile URL of Manager1)
-- [Manager-Name2](GitHub profile URL of Manager2)
+
+- [Nkashyap-calance](https://github.com/Nkashyap-calance) - Repository Owner & Template Maintainer
 
 **Developer/s:**
-- [Developer-1](GitHub profile URL of developer-1)
-- [Developer-2](GitHub profile URL of developer-2)
+
+- [Calance-US Team](https://github.com/Calance-US) - Development Team
+- [Template Contributors](https://github.com/Calance-US/public-repository-template/graphs/contributors) - All contributors to this template
+
+**Template Usage:**
+This template is designed to be used across all Calance-US repositories. For questions about implementation or customization, please contact the development team or create an issue in this repository.
