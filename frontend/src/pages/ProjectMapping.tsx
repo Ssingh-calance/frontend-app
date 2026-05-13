@@ -18,6 +18,19 @@ interface Template {
     name: string;
 }
 
+interface SyncPayload {
+    source_project_id: number;
+    source_company_id: number;
+    dest_company_id: number;
+    dest_project_id?: number;
+    create_from_source?: boolean;
+    source_template_id?: number;
+}
+
+interface SyncStartResponse {
+    job_id: string | number;
+}
+
 /*
 ## Project Mapping & Migration Refinements
 
@@ -50,7 +63,7 @@ export const ProjectMapping = () => {
     const [projectMap, setProjectMap] = useState<Record<number, MappingStatus>>({});
     const [searchQuery, setSearchQuery] = useState('');
 
-    const { data: sourceProjects, isLoading: loadingSource } = useQuery({
+    const { data: sourceProjects, isLoading: loadingSource } = useQuery<Project[]>({
         queryKey: ['sourceProjects', sourceCompanyId],
         queryFn: async () => {
             const res = await apiClient.post('/data/projects/source', {
@@ -62,19 +75,19 @@ export const ProjectMapping = () => {
         enabled: !!sourceCompanyId
     });
 
-    const { data: destProjects, isLoading: loadingDest } = useQuery({
+    const { data: destProjects, isLoading: loadingDest } = useQuery<Project[]>({
         queryKey: ['destProjects', destCompanyId],
         queryFn: async () => {
             const res = await apiClient.post('/data/projects/destination', {
-                 company_id: parseInt(destCompanyId || '0'),
-                 dest_company_id: parseInt(destCompanyId || '0')
+                company_id: parseInt(destCompanyId || '0'),
+                dest_company_id: parseInt(destCompanyId || '0')
             });
             return res.data.projects as Project[];
         },
         enabled: !!destCompanyId
     });
-    
-    const { data: sourceTemplates } = useQuery({
+
+    const { data: sourceTemplates } = useQuery<Template[]>({
         queryKey: ['sourceTemplates', sourceCompanyId],
         queryFn: async () => {
             const res = await apiClient.get(`/data/projects/templates?company_id=${sourceCompanyId}&dest_company_id=${destCompanyId}`);
@@ -83,7 +96,7 @@ export const ProjectMapping = () => {
         enabled: !!sourceCompanyId
     });
 
-    const { data: myPermissions } = useQuery({
+    const { data: myPermissions } = useQuery<string[]>({
         queryKey: ['my-permissions', destCompanyId],
         queryFn: async () => {
             const res = await apiClient.get('/admin/my-permissions', {
@@ -100,8 +113,8 @@ export const ProjectMapping = () => {
         if (!sourceProjects) return [];
         if (!searchQuery) return sourceProjects;
         const q = searchQuery.toLowerCase();
-        return sourceProjects.filter(p => 
-            p.name.toLowerCase().includes(q) || 
+        return sourceProjects.filter(p =>
+            p.name.toLowerCase().includes(q) ||
             p.display_name.toLowerCase().includes(q)
         );
     }, [sourceProjects, searchQuery]);
@@ -109,7 +122,7 @@ export const ProjectMapping = () => {
     const handleMappingChange = (sourceId: number, value: string) => {
         setProjectMap(prev => {
             const nextMap = { ...prev };
-            if (value === "") {
+            if (value === '') {
                 delete nextMap[sourceId];
             } else if (value === 'new-source') {
                 nextMap[sourceId] = { type: 'new', createFromSource: true };
@@ -123,12 +136,12 @@ export const ProjectMapping = () => {
         });
     };
 
-    const startSync = useMutation({
-        mutationFn: async (payload: any) => {
+    const startSync = useMutation<SyncStartResponse, unknown, SyncPayload>({
+        mutationFn: async (payload: SyncPayload) => {
             const res = await apiClient.post('/sync/start-sync', payload);
-            return res.data;
+            return res.data as SyncStartResponse;
         },
-        onSuccess: (data) => {
+        onSuccess: (data: SyncStartResponse) => {
             navigate(`/sync-status?job_id=${data.job_id}`);
         }
     });
@@ -137,16 +150,16 @@ export const ProjectMapping = () => {
         // Find first selected mapping
         const sourceIdStr = Object.keys(projectMap)[0];
         if (!sourceIdStr) return;
-        
+
         const sourceId = parseInt(sourceIdStr);
         const mapping = projectMap[sourceId];
-        
-        const payload: any = {
+
+        const payload: SyncPayload = {
             source_project_id: sourceId,
             source_company_id: parseInt(sourceCompanyId || '0'),
             dest_company_id: parseInt(destCompanyId || '0'),
         };
-        
+
         if (mapping.type === 'existing') {
             payload.dest_project_id = mapping.id;
         } else if (mapping.createFromSource) {
@@ -154,7 +167,7 @@ export const ProjectMapping = () => {
         } else {
             payload.source_template_id = mapping.sourceTemplateId;
         }
-        
+
         startSync.mutate(payload);
     };
 
@@ -163,7 +176,7 @@ export const ProjectMapping = () => {
             .filter(m => m.type === 'existing')
             .map(m => m.id)
     );
-    
+
     const isLoading = loadingSource || loadingDest;
 
     if (isLoading) {
@@ -178,9 +191,9 @@ export const ProjectMapping = () => {
     return (
         <div className="mt-6 flex flex-col gap-6 max-w-6xl mx-auto px-4">
             {!hasProjectAdmin && (
-                <AccessRequestBanner 
-                    appSlug="project-admin" 
-                    companyId={destCompanyId || ''} 
+                <AccessRequestBanner
+                    appSlug="project-admin"
+                    companyId={destCompanyId || ''}
                     title="Project Mapping Access Restricted"
                     description="You need 'Project Admin' migration permissions to create or update global project mappings."
                 />
@@ -194,15 +207,15 @@ export const ProjectMapping = () => {
                 <div className="flex items-center gap-4">
                     <div className="relative group">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 group-focus-within:text-orange-500 transition-colors" />
-                        <input 
-                            type="text" 
-                            placeholder="Search projects..." 
+                        <input
+                            type="text"
+                            placeholder="Search projects..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="pl-10 pr-4 py-2 bg-white border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all w-64"
                         />
                     </div>
-                    <button 
+                    <button
                         onClick={handleInitiateSync}
                         disabled={Object.keys(projectMap).length === 0 || startSync.isPending || !hasProjectAdmin}
                         className="bg-[#f47e42] hover:bg-[#dc7e42] text-white font-bold py-3 px-8 rounded-xl transition-all flex items-center gap-3 disabled:opacity-30 shadow-lg shadow-orange-500/20 whitespace-nowrap min-w-[200px] justify-center"
@@ -247,16 +260,16 @@ export const ProjectMapping = () => {
                                     <span className="font-bold text-zinc-900 text-base leading-tight truncate" title={source.display_name}>{source.display_name}</span>
                                     <span className="text-[10px] font-mono text-zinc-400 mt-1 truncate">#SOURCE_{source.id}</span>
                                 </div>
-                                
+
                                 <div className="col-span-1 flex justify-center">
                                     <div className={`h-1 w-6 rounded-full ${currentMapping ? 'bg-orange-500 shadow-sm' : 'bg-zinc-200'}`} />
                                 </div>
-                                
+
                                 <div className="col-span-7 flex items-center gap-3">
                                     <div className="flex-1 flex flex-col gap-1">
                                         <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-tight">Existing Project</label>
                                         <select
-                                            value={currentMapping?.type === 'existing' ? currentMapping.id?.toString() : ""}
+                                            value={currentMapping?.type === 'existing' ? currentMapping.id?.toString() : ''}
                                             disabled={currentMapping?.type === 'new'}
                                             onChange={(e) => handleMappingChange(source.id, e.target.value)}
                                             className={`w-full bg-white border-2 rounded-lg px-3 py-2 text-xs font-medium outline-none transition-all ${currentMapping?.type === 'existing' ? 'border-orange-200 text-zinc-900' : 'border-zinc-100 text-zinc-400'} disabled:opacity-20`}
@@ -278,7 +291,7 @@ export const ProjectMapping = () => {
                                     <div className="flex-1 flex flex-col gap-1">
                                         <label className="text-[10px] font-bold text-[#f47e42] uppercase tracking-tight">Create New Project (Seeding Template)</label>
                                         <select
-                                            value={currentMapping?.type === 'new' ? (currentMapping.createFromSource ? 'new-source' : `new-${currentMapping.sourceTemplateId}`) : ""}
+                                            value={currentMapping?.type === 'new' ? (currentMapping.createFromSource ? 'new-source' : `new-${currentMapping.sourceTemplateId}`) : ''}
                                             disabled={currentMapping?.type === 'existing'}
                                             onChange={(e) => handleMappingChange(source.id, e.target.value)}
                                             className={`w-full bg-white border-2 rounded-lg px-3 py-2 text-xs font-medium outline-none transition-all ${currentMapping?.type === 'new' ? 'border-orange-200 text-zinc-900' : 'border-zinc-100 text-zinc-400'} disabled:opacity-20`}
@@ -297,14 +310,14 @@ export const ProjectMapping = () => {
                         );
                     })}
                     {(!sourceProjects || sourceProjects.length === 0) && (
-                         <div className="p-16 text-center text-zinc-400 flex flex-col items-center gap-2">
-                             <DatabaseBackup className="w-12 h-12 opacity-20" />
-                             <p className="text-lg font-medium">No projects found in this repository.</p>
-                         </div>
+                        <div className="p-16 text-center text-zinc-400 flex flex-col items-center gap-2">
+                            <DatabaseBackup className="w-12 h-12 opacity-20" />
+                            <p className="text-lg font-medium">No projects found in this repository.</p>
+                        </div>
                     )}
                 </div>
             </div>
-            
+
             <div className="p-4 bg-zinc-100/50 rounded-xl border border-zinc-200 text-zinc-500 text-xs text-center italic">
                 Note: Destination projects will be created automatically if selecting from templates.
             </div>

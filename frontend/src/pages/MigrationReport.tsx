@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Table, Tag, Typography, Card, Input, Breadcrumb, Button, Space, Tooltip } from 'antd';
 import { SearchOutlined, FileSyncOutlined, HomeOutlined, SyncOutlined, DownloadOutlined } from '@ant-design/icons';
 import { Link } from 'react-router-dom';
 import { apiClient } from '../api/client';
+import type { ColumnsType, FilterValue } from 'antd/es/table/interface';
 
 const { Title, Text } = Typography;
 
@@ -21,41 +22,45 @@ interface SyncedRecord {
     synced_at: string;
 }
 
+interface SyncRecordsResponse {
+    records?: SyncedRecord[];
+}
+
 export const MigrationReport: React.FC = () => {
     const [records, setRecords] = useState<SyncedRecord[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [searchText, setSearchText] = useState('');
+    const [loading, setLoading] = useState<boolean>(true);
+    const [searchText, setSearchText] = useState<string>('');
 
-    useEffect(() => {
-        fetchRecords();
-    }, []);
-
-    const fetchRecords = async () => {
+    const fetchRecords = useCallback(async (): Promise<void> => {
         setLoading(true);
         try {
-            const response = await apiClient.get('/sync/records', {
+            const response = await apiClient.get<SyncRecordsResponse>('/sync/records', {
                 params: { limit: 1000 }
             });
-            setRecords(response.data.records || []);
-        } catch (error) {
+            setRecords(response.data.records ?? []);
+        } catch (error: unknown) {
             console.error('Failed to fetch records:', error);
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
-    const handleDownload = () => {
+    useEffect(() => {
+        void fetchRecords();
+    }, [fetchRecords]);
+
+    const handleDownload = (): void => {
         const url = `${apiClient.defaults.baseURL}/sync/records/download`;
         window.open(url, '_blank');
     };
 
-    const columns = [
+    const columns: ColumnsType<SyncedRecord> = [
         {
             title: 'App',
             dataIndex: 'app_name',
             key: 'app_name',
-            render: (app: string) => <Tag color="purple">{app || 'Other'}</Tag>,
-            sorter: (a: any, b: any) => (a.app_name || '').localeCompare(b.app_name || ''),
+            render: (app?: string) => <Tag color="purple">{app || 'Other'}</Tag>,
+            sorter: (a: SyncedRecord, b: SyncedRecord) => (a.app_name || '').localeCompare(b.app_name || ''),
         },
         {
             title: 'Entity Type',
@@ -69,14 +74,15 @@ export const MigrationReport: React.FC = () => {
                 { text: 'RFI', value: 'rfi' },
                 { text: 'RFI Reply', value: 'rfi_reply' },
             ],
-            onFilter: (value: any, record: any) => record.entity_type === value,
+            onFilter: (value: boolean | React.Key, record: SyncedRecord) =>
+                record.entity_type === String(value),
         },
         {
             title: 'Item Name',
             dataIndex: 'name',
             key: 'name',
-            render: (name: string) => name ? <Text strong>{name}</Text> : <Text type="secondary">N/A</Text>,
-            sorter: (a: any, b: any) => (a.name || '').localeCompare(b.name || ''),
+            render: (name?: string) => name ? <Text strong>{name}</Text> : <Text type="secondary">N/A</Text>,
+            sorter: (a: SyncedRecord, b: SyncedRecord) => (a.name || '').localeCompare(b.name || ''),
         },
         {
             title: 'Source ID',
@@ -88,18 +94,18 @@ export const MigrationReport: React.FC = () => {
             title: 'Dest ID',
             dataIndex: 'dest_id',
             key: 'dest_id',
-            render: (id: string) => <Text code>{id || 'N/A'}</Text>,
+            render: (id?: string) => <Text code>{id || 'N/A'}</Text>,
         },
         {
             title: 'Syncs',
             dataIndex: 'sync_count',
             key: 'sync_count',
-            render: (count: number) => (
+            render: (count?: number) => (
                 <Tooltip title="Number of times this item has been synced">
                     <Tag color="cyan">{count || 1}</Tag>
                 </Tooltip>
             ),
-            sorter: (a: any, b: any) => (a.sync_count || 0) - (b.sync_count || 0),
+            sorter: (a: SyncedRecord, b: SyncedRecord) => (a.sync_count || 0) - (b.sync_count || 0),
         },
         {
             title: 'Status',
@@ -115,26 +121,31 @@ export const MigrationReport: React.FC = () => {
             dataIndex: 'synced_at',
             key: 'synced_at',
             render: (date: string) => new Date(date).toLocaleString(),
-            sorter: (a: any, b: any) => new Date(a.synced_at).getTime() - new Date(b.synced_at).getTime(),
+            sorter: (a: SyncedRecord, b: SyncedRecord) =>
+                new Date(a.synced_at).getTime() - new Date(b.synced_at).getTime(),
         },
         {
             title: 'Details',
             key: 'details',
-            render: (_: any, record: any) => (
-                record.error_message ? 
-                <Text type="danger" style={{ fontSize: '12px' }}>{record.error_message}</Text> : 
-                <Text type="secondary" style={{ fontSize: '12px' }}>
-                    Job: {record.sync_job_id ? record.sync_job_id.split('-')[0] : 'N/A'}...
-                </Text>
+            render: (_value: unknown, record: SyncedRecord) => (
+                record.error_message ?
+                    <Text type="danger" style={{ fontSize: '12px' }}>{record.error_message}</Text> :
+                    <Text type="secondary" style={{ fontSize: '12px' }}>
+                        Job: {record.sync_job_id ? record.sync_job_id.split('-')[0] : 'N/A'}...
+                    </Text>
             )
         }
     ];
 
-    const filteredRecords = records.filter(r => 
-        r.entity_type.toLowerCase().includes(searchText.toLowerCase()) ||
-        (r.name && r.name.toLowerCase().includes(searchText.toLowerCase())) ||
-        r.source_id.includes(searchText) ||
-        r.dest_id?.includes(searchText)
+    const filteredRecords = useMemo(
+        () =>
+            records.filter((r) =>
+                r.entity_type.toLowerCase().includes(searchText.toLowerCase()) ||
+                (r.name && r.name.toLowerCase().includes(searchText.toLowerCase())) ||
+                r.source_id.includes(searchText) ||
+                (r.dest_id && r.dest_id.includes(searchText))
+            ),
+        [records, searchText]
     );
 
     return (
@@ -153,17 +164,17 @@ export const MigrationReport: React.FC = () => {
                     <Text type="secondary">View detailed synchronization history for all project entities.</Text>
                 </div>
                 <Space size="middle">
-                    <Button 
-                        icon={<DownloadOutlined />} 
+                    <Button
+                        icon={<DownloadOutlined />}
                         onClick={handleDownload}
                         type="primary"
                         ghost
                     >
                         Download CSV
                     </Button>
-                    <Button 
-                        icon={<SyncOutlined />} 
-                        onClick={fetchRecords}
+                    <Button
+                        icon={<SyncOutlined />}
+                        onClick={() => void fetchRecords()}
                         loading={loading}
                     >
                         Refresh
@@ -172,15 +183,15 @@ export const MigrationReport: React.FC = () => {
                         placeholder="Search by ID or Type..."
                         prefix={<SearchOutlined />}
                         style={{ width: 300 }}
-                        onChange={e => setSearchText(e.target.value)}
+                        onChange={(e) => setSearchText(e.target.value)}
                     />
                 </Space>
             </div>
 
             <Card className="shadow-sm">
-                <Table 
-                    columns={columns} 
-                    dataSource={filteredRecords} 
+                <Table<SyncedRecord>
+                    columns={columns}
+                    dataSource={filteredRecords}
                     rowKey="id"
                     loading={loading}
                     pagination={{ pageSize: 15 }}

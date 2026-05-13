@@ -61,6 +61,11 @@ interface DrawingArea {
     disciplines: DrawingDiscipline[];
 }
 
+interface DrawingMapping {
+    synced_at?: string;
+    [key: string]: unknown;
+}
+
 // ─── Drawing Row ──────────────────────────────────────────────────────────────
 const DrawingRow = ({
     drawing,
@@ -102,12 +107,22 @@ const DrawingRow = ({
             message.success(`Sync started for ${drawing.name}`);
             onMigrated();
         });
-    }, [jobId, drawing.id, srcProjId, dstProjId, sourceCompanyId, destCompanyId, addJob, onMigrated]);
+    }, [
+        jobId,
+        drawing.id,
+        drawing.name,
+        level,
+        srcProjId,
+        dstProjId,
+        sourceCompanyId,
+        destCompanyId,
+        addJob,
+        onMigrated
+    ]);
 
     const isSyncing = isRunning || isWaiting;
     const displaySynced = isCompleted || synced;
 
-    // Syncing / completed bar view
     if (isSyncing || isCompleted || isFailed) {
         return (
             <div className={`flex items-center gap-3 pl-14 pr-4 py-2.5 rounded-lg border mb-1 transition-all ${
@@ -115,7 +130,6 @@ const DrawingRow = ({
                 isCompleted ? 'bg-green-50/30 dark:bg-green-900/5 border-green-100 dark:border-green-900/30' :
                 'bg-red-50/30 dark:bg-red-900/5 border-red-100 dark:border-red-900/30'
             }`}>
-                {/* file icon box */}
                 <div className="w-9 h-9 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center shrink-0 border border-zinc-200 dark:border-zinc-700">
                     {isSyncing ? <InfinityLoader size="xs" variant="rotate" /> :
                      isCompleted ? <CheckCircle2 className="w-4 h-4 text-green-500" /> :
@@ -214,7 +228,7 @@ const DisciplineRow = ({
     onMigrated,
 }: {
     discipline: DrawingDiscipline;
-    mappings: Record<string, any>;
+    mappings: Record<string, DrawingMapping>;
     selectedIds: Set<number>;
     onToggleDrawing: (id: number) => void;
     onToggleAll: (ids: number[], check: boolean) => void;
@@ -243,7 +257,6 @@ const DisciplineRow = ({
 
     return (
         <div className="mb-1">
-            {/* Discipline header */}
             <div
                 className="flex items-center gap-2 pl-7 pr-3 py-1.5 rounded-lg cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/40 group"
                 onClick={() => setExpanded(e => !e)}
@@ -298,7 +311,7 @@ const AreaRow = ({
     onMigrated,
 }: {
     area: DrawingArea;
-    mappings: Record<string, any>;
+    mappings: Record<string, DrawingMapping>;
     selectedIds: Set<number>;
     onToggleDrawing: (id: number) => void;
     onToggleAll: (ids: number[], check: boolean) => void;
@@ -337,7 +350,6 @@ const AreaRow = ({
 
     return (
         <div className="mb-3">
-            {/* Area header */}
             <div
                 className="flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer bg-zinc-50 dark:bg-zinc-800/60 hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 group"
                 onClick={() => setExpanded(e => !e)}
@@ -402,7 +414,6 @@ const DrawingsTab = ({
     const queryClient = useQueryClient();
     const { jobs, addJob } = useSyncQueueStore();
 
-    // Fetch nested drawing tree
     const { data: areas, isLoading } = useQuery<DrawingArea[]>({
         queryKey: ['source-items', 'drawings', srcProjId, sourceCompanyId, level],
         queryFn: async () => {
@@ -419,14 +430,13 @@ const DrawingsTab = ({
         enabled: !!srcProjId && !!sourceCompanyId,
     });
 
-    // Fetch mappings (which drawings are already synced)
-    const { data: mappings, refetch: refetchMappings } = useQuery<Record<string, any>>({
+    const { data: mappings, refetch: refetchMappings } = useQuery<Record<string, DrawingMapping>>({
         queryKey: ['mappings', 'drawings', dstProjId],
         queryFn: async () => {
             const res = await apiClient.get('/sync/mappings', {
                 params: { dest_project_id: dstProjId, dest_company_id: destCompanyId, entity_type: 'drawing' },
             });
-            return res.data.mappings;
+            return (res.data.mappings ?? {}) as Record<string, DrawingMapping>;
         },
         enabled: !!dstProjId,
     });
@@ -500,7 +510,6 @@ const DrawingsTab = ({
 
             {(srcProjId && dstProjId) ? (
                 <Card className="rounded-2xl shadow-xl overflow-hidden" styles={{ body: { padding: 0 } }}>
-                    {/* Toolbar */}
                     <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">
                         <div className="flex items-center gap-3">
                             <Input
@@ -533,7 +542,6 @@ const DrawingsTab = ({
                         </Space>
                     </div>
 
-                    {/* Tree Content */}
                     <div className="p-6">
                         {isLoading ? (
                             <div className="flex flex-col items-center justify-center py-20 gap-4">
@@ -599,7 +607,6 @@ export const DrawingsMigrationPage: React.FC = () => {
 
     return (
         <div className="p-8 max-w-full mx-auto text-zinc-800 dark:text-zinc-200">
-            {/* Header */}
             <div className="relative mb-6 p-8 rounded-3xl bg-gradient-to-br from-zinc-100 to-white dark:from-zinc-900 dark:to-zinc-800 text-zinc-900 dark:text-white overflow-hidden shadow-2xl border border-zinc-200 dark:border-zinc-800">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full -mr-32 -mt-32 blur-3xl" />
                 <div className="absolute bottom-0 left-0 w-64 h-64 bg-orange-500/10 rounded-full -ml-32 -mb-32 blur-3xl" />

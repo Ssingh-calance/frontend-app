@@ -11,12 +11,11 @@ import AdminPanel from './pages/AdminPanel';
 import { Layout } from './components/Layout';
 import { SyncStatus } from './pages/SyncStatus';
 import { MigrationReport } from './pages/MigrationReport';
-import { Instructions } from './pages/Instructions';
 import { UserGuide } from './pages/UserGuide';
 
 // Auth Guard
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const isAuthenticated = useAuthStore(state => state.isAuthenticated);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
 };
 
@@ -33,24 +32,24 @@ const MainApp: React.FC = () => {
   const initialized = useRef(false);
   const [params] = useSearchParams();
 
-  const CompanyId = params.get("company_id");
-  const ProjectId = params.get("project_id");
-  const CompanyName = params.get("company_name");
-  const ProjectName = params.get("project_name");
-  const organizationId = params.get("organization_id");
+  const companyId = params.get('company_id');
+  const projectId = params.get('project_id');
+  const companyName = params.get('company_name');
+  const projectName = params.get('project_name');
+  const organizationId = params.get('organization_id');
 
   useEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
 
-    if (CompanyId) sessionStorage.setItem('CompanyId', CompanyId);
-    if (ProjectId) sessionStorage.setItem('ProjectId', ProjectId);
-    if (ProjectName) sessionStorage.setItem('ProjectName', ProjectName);
-    if (CompanyName) sessionStorage.setItem('CompanyName', CompanyName);
+    if (companyId) sessionStorage.setItem('CompanyId', companyId);
+    if (projectId) sessionStorage.setItem('ProjectId', projectId);
+    if (projectName) sessionStorage.setItem('ProjectName', projectName);
+    if (companyName) sessionStorage.setItem('CompanyName', companyName);
     if (organizationId) sessionStorage.setItem('OrganizationId', organizationId);
 
-    if (CompanyId || CompanyName || organizationId) {
-      setContext(CompanyId, CompanyName, organizationId);
+    if (companyId || companyName || organizationId) {
+      setContext(companyId, companyName, organizationId);
     }
 
     if (sessionStorage.getItem('CompanyId') && !useAuthStore.getState().companyId) {
@@ -60,8 +59,9 @@ const MainApp: React.FC = () => {
         sessionStorage.getItem('OrganizationId')
       );
     }
+  }, [companyId, projectId, companyName, projectName, organizationId, setContext]);
 
-    // Toggle global body class too based on isDarkMode (for any remaining tailwind dark stuff if they used it)
+  useEffect(() => {
     if (isDarkMode) {
       document.body.classList.add('dark');
       document.documentElement.classList.add('dark');
@@ -69,7 +69,7 @@ const MainApp: React.FC = () => {
       document.body.classList.remove('dark');
       document.documentElement.classList.remove('dark');
     }
-  }, [setContext, isDarkMode]);
+  }, [isDarkMode]);
 
   return (
     <ConfigProvider theme={{ algorithm: isDarkMode ? theme.darkAlgorithm : theme.defaultAlgorithm }}>
@@ -79,28 +79,52 @@ const MainApp: React.FC = () => {
           <Route path="/callback" element={<Callback />} />
 
           <Route element={<Layout />}>
-            <Route path="/dashboard" element={
-              <ProtectedRoute><Dashboard /></ProtectedRoute>
-            } />
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              }
+            />
 
-            <Route path="/company-setup" element={
-              <ProtectedRoute><CompanySetup /></ProtectedRoute>
-            } />
+            <Route
+              path="/company-setup"
+              element={
+                <ProtectedRoute>
+                  <CompanySetup />
+                </ProtectedRoute>
+              }
+            />
 
-            <Route path="/sync-status" element={
-              <ProtectedRoute><SyncStatus /></ProtectedRoute>
-            } />
+            <Route
+              path="/sync-status"
+              element={
+                <ProtectedRoute>
+                  <SyncStatus />
+                </ProtectedRoute>
+              }
+            />
 
-            <Route path="/admin" element={
-              <AdminRoute><AdminPanel /></AdminRoute>
-            } />
+            <Route
+              path="/admin"
+              element={
+                <AdminRoute>
+                  <AdminPanel />
+                </AdminRoute>
+              }
+            />
 
-            <Route path="/migration-report" element={
-              <ProtectedRoute><MigrationReport /></ProtectedRoute>
-            } />
+            <Route
+              path="/migration-report"
+              element={
+                <ProtectedRoute>
+                  <MigrationReport />
+                </ProtectedRoute>
+              }
+            />
 
             <Route path="/user-guide" element={<UserGuide />} />
-
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
           </Route>
 
@@ -109,6 +133,6 @@ const MainApp: React.FC = () => {
       </AntdApp>
     </ConfigProvider>
   );
-}
+};
 
 export default MainApp;

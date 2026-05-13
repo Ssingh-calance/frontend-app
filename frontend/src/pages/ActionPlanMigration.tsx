@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
-import { 
-    ClipboardList, 
+import {
+    ClipboardList,
     Building2,
     Briefcase,
     ArrowRight,
@@ -12,18 +12,19 @@ import {
 } from 'lucide-react';
 import { InfinityLoader } from '../components/InfinityLoader';
 import { useSyncQueueStore } from '../store/syncQueueStore';
-import { 
-    Button, 
-    Card, 
-    Typography, 
-    message, 
-    Space, 
-    Tag, 
-    Table, 
+import {
+    Button,
+    Card,
+    Typography,
+    message,
+    Space,
+    Tag,
+    Table,
     Tabs,
     Input
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import type { Key } from 'react';
 import { GlobalProjectSelector } from '../components/GlobalProjectSelector';
 import { AccessRequestBanner } from '../components/AccessRequestBanner';
 
@@ -39,13 +40,40 @@ interface ActionPlanItem {
     status: 'Migrated' | 'Not Migrated';
 }
 
+interface TemplateRecord {
+    id: number;
+    title?: string;
+    name?: string;
+    number?: string;
+    plan_number?: string;
+    is_company_template?: boolean;
+    plan_template?: { id: number };
+}
+
+interface PlanRecord {
+    id: number;
+    title?: string;
+    number?: string;
+    plan_number?: string;
+}
+
+interface MappingEntry {
+    dest_id?: string | number;
+}
+
+type MappingRecord = Record<string, MappingEntry>;
+
+interface ComparedActionPlanItem extends ActionPlanItem {
+    destName?: string;
+    isCompanyTemplate?: boolean;
+}
 
 // --- Sub-App 1: Company Templates ---
-const CompanyTemplatesTab = ({ sourceId, destId }: { sourceId: string, destId: string }) => {
+const CompanyTemplatesTab = ({ sourceId, destId }: { sourceId: string; destId: string }) => {
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
     const [search, setSearch] = useState('');
-    
-    const { data: myPermissions } = useQuery({
+
+    const { data: myPermissions } = useQuery<string[]>({
         queryKey: ['my-permissions', destId],
         queryFn: async () => {
             const res = await apiClient.get('/admin/my-permissions', {
@@ -58,52 +86,52 @@ const CompanyTemplatesTab = ({ sourceId, destId }: { sourceId: string, destId: s
 
     const hasPermission = myPermissions?.includes('action-plans');
 
-    const { data: sourceTemplates, isLoading: loadingSource } = useQuery({
+    const { data: sourceTemplates, isLoading: loadingSource } = useQuery<TemplateRecord[]>({
         queryKey: ['company-templates-source', sourceId],
         queryFn: async () => {
             const res = await apiClient.get(`/action-plans/company/${sourceId}/templates/source`);
-            return res.data;
+            return res.data as TemplateRecord[];
         }
     });
 
-    const { data: destTemplates, isLoading: loadingDest, refetch: refetchDest } = useQuery({
+    const { data: destTemplates, isLoading: loadingDest, refetch: refetchDest } = useQuery<TemplateRecord[]>({
         queryKey: ['company-templates-dest', destId],
         queryFn: async () => {
             const res = await apiClient.get(`/action-plans/company/${destId}/templates`);
-            return res.data;
+            return res.data as TemplateRecord[];
         }
     });
 
-    const { data: mappings, refetch: refetchMappings } = useQuery({
+    const { data: mappings, refetch: refetchMappings } = useQuery<MappingRecord>({
         queryKey: ['mappings-company', destId],
         queryFn: async () => {
-            const res = await apiClient.get(`/sync/mappings?dest_project_id=${destId}&dest_company_id=${destId}&entity_type=action_plan_company_template`);
-            return res.data.mappings;
+            const res = await apiClient.get(
+                `/sync/mappings?dest_project_id=${destId}&dest_company_id=${destId}&entity_type=action_plan_company_template`
+            );
+            return (res.data.mappings ?? {}) as MappingRecord;
         }
     });
 
-    const comparisonData = useMemo<ActionPlanItem[]>(() => {
+    const comparisonData = useMemo<ComparedActionPlanItem[]>(() => {
         if (!sourceTemplates) return [];
         return sourceTemplates
-            .filter((st: any) => {
-                const title = st?.title || st?.name || '';
+            .filter((st) => {
+                const title = st.title || st.name || '';
                 return title.toLowerCase().includes((search || '').toLowerCase());
             })
-            .map((st: any) => {
-                const sTitle = st?.title || st?.name;
-                
-                // Use mapping with robust ID string conversion
+            .map((st) => {
+                const sTitle = st.title || st.name;
                 const mapping = mappings?.[String(st.id)];
-                let match = null;
-                if (mapping) {
-                    match = destTemplates?.find((dt: any) => String(dt.id) === String(mapping.dest_id));
+                let match: TemplateRecord | undefined;
+
+                if (mapping?.dest_id !== undefined) {
+                    match = destTemplates?.find((dt) => String(dt.id) === String(mapping.dest_id));
                 }
-                
-                // Fallback to name match for unmapped legacy items
+
                 if (!match) {
-                     match = destTemplates?.find((dt: any) => {
-                        const dTitle = dt?.title || dt?.name;
-                        return sTitle && dTitle && dTitle.toLowerCase().trim() === sTitle.toLowerCase().trim();
+                    match = destTemplates?.find((dt) => {
+                        const dTitle = dt.title || dt.name;
+                        return !!sTitle && !!dTitle && dTitle.toLowerCase().trim() === sTitle.toLowerCase().trim();
                     });
                 }
 
@@ -120,7 +148,9 @@ const CompanyTemplatesTab = ({ sourceId, destId }: { sourceId: string, destId: s
     const { jobs, addJob } = useSyncQueueStore();
 
     const syncingItemsCount = useMemo(() => {
-        return Object.values(jobs).filter(j => j.jobId.startsWith('action_plan_company_template_') && (j.status === 'running' || j.status === 'pending')).length;
+        return Object.values(jobs).filter(
+            (j) => j.jobId.startsWith('action_plan_company_template_') && (j.status === 'running' || j.status === 'pending')
+        ).length;
     }, [jobs]);
 
     const isRunning = syncingItemsCount > 0;
@@ -128,26 +158,28 @@ const CompanyTemplatesTab = ({ sourceId, destId }: { sourceId: string, destId: s
     const handleSync = (sourceTemplateId: number) => {
         const jobId = `action_plan_company_template_${sourceTemplateId}`;
         addJob(jobId, async () => {
-            await apiClient.post(`/action-plans/sync-company-template?source_company_id=${sourceId}&dest_company_id=${destId}&source_template_id=${sourceTemplateId}`);
+            await apiClient.post(
+                `/action-plans/sync-company-template?source_company_id=${sourceId}&dest_company_id=${destId}&source_template_id=${sourceTemplateId}`
+            );
             message.success('Company Template synced!');
             refetchDest();
             refetchMappings();
         });
     };
 
-    const columns: ColumnsType<ActionPlanItem & { destName?: string }> = [
-        { 
-            title: 'Number', 
-            dataIndex: 'plan_number', 
-            key: 'plan_number', 
+    const columns: ColumnsType<ComparedActionPlanItem> = [
+        {
+            title: 'Number',
+            dataIndex: 'plan_number',
+            key: 'plan_number',
             width: 100,
-            render: (t: string, r: any) => <span>{t || r.number || '-'}</span>
+            render: (t: string | undefined, r: ComparedActionPlanItem) => <span>{t || r.number || '-'}</span>
         },
-        { 
-            title: 'Source Template', 
-            dataIndex: 'name', 
-            key: 'name', 
-            render: (t: string) => <span className="font-semibold text-zinc-900">{t}</span> 
+        {
+            title: 'Source Template',
+            dataIndex: 'name',
+            key: 'name',
+            render: (t: string | undefined) => <span className="font-semibold text-zinc-900">{t}</span>
         },
         {
             title: '',
@@ -155,100 +187,110 @@ const CompanyTemplatesTab = ({ sourceId, destId }: { sourceId: string, destId: s
             width: 50,
             render: () => <ArrowRight className="w-4 h-4 text-zinc-300" />
         },
-        { 
-            title: 'Destination Template', 
-            dataIndex: 'destName', 
-            key: 'destName', 
-            render: (t: string) => t ? <span className="text-zinc-600">{t}</span> : <span className="text-zinc-400 italic">Not found</span> 
+        {
+            title: 'Destination Template',
+            dataIndex: 'destName',
+            key: 'destName',
+            render: (t: string | undefined) =>
+                t ? <span className="text-zinc-600">{t}</span> : <span className="text-zinc-400 italic">Not found</span>
         },
-        { title: 'Status', dataIndex: 'status', key: 'status', render: (s: string) => <Tag color={s === 'Migrated' ? 'green' : 'orange'}>{s}</Tag> },
-        { 
-            title: 'Action', 
-            key: 'action', 
-            render: (_: any, r: ActionPlanItem) => {
+        {
+            title: 'Status',
+            dataIndex: 'status',
+            key: 'status',
+            render: (s: string) => <Tag color={s === 'Migrated' ? 'green' : 'orange'}>{s}</Tag>
+        },
+        {
+            title: 'Action',
+            key: 'action',
+            render: (_value: unknown, r: ComparedActionPlanItem) => {
                 const job = jobs[`action_plan_company_template_${r.id}`];
                 const isPending = job?.status === 'running' || job?.status === 'pending';
                 if (job?.status === 'pending') {
                     return <Tag color="orange">Waiting...</Tag>;
                 }
                 return (
-                    <Button 
-                        size="small" 
-                        icon={isPending ? <InfinityLoader size="xs" variant="rotate" /> : (r.status === 'Migrated' ? <RefreshCw className="w-3 h-3" /> : <Copy className="w-3 h-3" />)}
+                    <Button
+                        size="small"
+                        icon={
+                            isPending ? (
+                                <InfinityLoader size="xs" variant="rotate" />
+                            ) : r.status === 'Migrated' ? (
+                                <RefreshCw className="w-3 h-3" />
+                            ) : (
+                                <Copy className="w-3 h-3" />
+                            )
+                        }
                         onClick={() => handleSync(r.id)}
                         disabled={isPending || !hasPermission}
                     >
-                        {isPending ? 'Syncing...' : (r.status === 'Migrated' ? 'Resync' : 'Sync')}
+                        {isPending ? 'Syncing...' : r.status === 'Migrated' ? 'Resync' : 'Sync'}
                     </Button>
                 );
-            } 
+            }
         }
     ];
 
     return (
         <div className="space-y-6">
             {!hasPermission && (
-                <AccessRequestBanner 
-                    appSlug="action-plans" 
-                    companyId={destId} 
+                <AccessRequestBanner
+                    appSlug="action-plans"
+                    companyId={destId}
                     title="Company Templates Access Restricted"
                     description="You need 'Action Plans' migration permissions to perform this operation."
                 />
             )}
             <Card className="border-0 shadow-none" bodyStyle={{ padding: 0 }}>
-            <div className="flex justify-between items-center mb-6 gap-4">
-                <div className="flex gap-2 items-center">
-                    <Input 
-                        placeholder="Search templates by title..." 
-                        prefix={<Search className="w-4 h-4 text-zinc-400" />}
-                        className="max-w-xs h-10 rounded-lg"
-                        allowClear
-                        onChange={(e) => setSearch(e.target.value)}
-                    />
-                    <Button 
-                        icon={<RefreshCw className="w-4 h-4" />} 
-                        onClick={() => { refetchDest(); refetchMappings(); }}
-                        title="Refresh"
-                    />
+                <div className="flex justify-between items-center mb-6 gap-4">
+                    <div className="flex gap-2 items-center">
+                        <Input
+                            placeholder="Search templates by title..."
+                            prefix={<Search className="w-4 h-4 text-zinc-400" />}
+                            className="max-w-xs h-10 rounded-lg"
+                            allowClear
+                            onChange={(e) => setSearch(e.target.value)}
+                        />
+                        <Button icon={<RefreshCw className="w-4 h-4" />} onClick={() => { refetchDest(); refetchMappings(); }} title="Refresh" />
+                    </div>
+                    {selectedIds.length > 0 && (
+                        <Button
+                            type="primary"
+                            className="bg-orange-600 hover:bg-orange-700 border-none"
+                            disabled={!hasPermission}
+                            onClick={() => {
+                                selectedIds.forEach((id) => handleSync(id));
+                                setSelectedIds([]);
+                            }}
+                        >
+                            {isRunning ? `Syncing Queue (${syncingItemsCount})...` : `Migrate Selected Templates (${selectedIds.length})`}
+                        </Button>
+                    )}
                 </div>
-                {selectedIds.length > 0 && (
-                    <Button 
-                        type="primary" 
-                        className="bg-orange-600 hover:bg-orange-700 border-none"
-                        disabled={!hasPermission}
-                        onClick={() => {
-                            selectedIds.forEach(id => handleSync(id));
-                            setSelectedIds([]);
-                        }}
-                    >
-                        {isRunning ? `Syncing Queue (${syncingItemsCount})...` : `Migrate Selected Templates (${selectedIds.length})`}
-                    </Button>
-                )}
-            </div>
-            <Table 
-                rowSelection={{
-                    selectedRowKeys: selectedIds,
-                    onChange: (keys: any) => setSelectedIds(keys as number[]),
-                }}
-                dataSource={comparisonData} 
-                columns={columns} 
-                rowKey="id" 
-                loading={(loadingSource || loadingDest) ? { indicator: <InfinityLoader size="lg" /> } : false}
-                pagination={{ pageSize: 8 }}
-            />
-        </Card>
+                <Table
+                    rowSelection={{
+                        selectedRowKeys: selectedIds,
+                        onChange: (keys: Key[]) => setSelectedIds(keys.map((k) => Number(k)))
+                    }}
+                    dataSource={comparisonData}
+                    columns={columns}
+                    rowKey="id"
+                    loading={(loadingSource || loadingDest) ? { indicator: <InfinityLoader size="lg" /> } : false}
+                    pagination={{ pageSize: 8 }}
+                />
+            </Card>
         </div>
     );
 };
 
 // --- Sub-App 2: Project Templates ---
-const ProjectTemplatesTab = ({ sourceId, destId }: { sourceId: string, destId: string }) => {
+const ProjectTemplatesTab = ({ sourceId, destId }: { sourceId: string; destId: string }) => {
     const [srcProjId, setSrcProjId] = useState<number | null>(null);
     const [dstProjId, setDstProjId] = useState<number | null>(null);
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
     const [search, setSearch] = useState('');
 
-    const { data: myPermissions } = useQuery({
+    const { data: myPermissions } = useQuery<string[]>({
         queryKey: ['my-permissions', destId],
         queryFn: async () => {
             const res = await apiClient.get('/admin/my-permissions', {
@@ -261,25 +303,25 @@ const ProjectTemplatesTab = ({ sourceId, destId }: { sourceId: string, destId: s
 
     const hasPermission = myPermissions?.includes('action-plans');
 
-    const { data: srcTemplates, isLoading: loadingSrc } = useQuery({
+    const { data: srcTemplates, isLoading: loadingSrc } = useQuery<TemplateRecord[]>({
         queryKey: ['project-templates-src', srcProjId],
         queryFn: async () => {
             const res = await apiClient.get(`/action-plans/project/${srcProjId}/templates/source?company_id=${sourceId}`);
-            return res.data;
+            return res.data as TemplateRecord[];
         },
         enabled: !!srcProjId
     });
 
-    const { data: dstTemplates, isLoading: loadingDst, refetch: refetchDest } = useQuery({
+    const { data: dstTemplates, isLoading: loadingDst, refetch: refetchDest } = useQuery<TemplateRecord[]>({
         queryKey: ['project-templates-dst', dstProjId],
         queryFn: async () => {
             const res = await apiClient.get(`/action-plans/project/${dstProjId}/templates?company_id=${destId}`);
-            return res.data;
+            return res.data as TemplateRecord[];
         },
         enabled: !!dstProjId
     });
 
-    const { data: mappings, refetch: refetchMappings } = useQuery({
+    const { data: mappings, refetch: refetchMappings } = useQuery<MappingRecord>({
         queryKey: ['mappings-project-temp', dstProjId, destId],
         queryFn: async () => {
             const [pRes, cRes] = await Promise.all([
@@ -287,46 +329,47 @@ const ProjectTemplatesTab = ({ sourceId, destId }: { sourceId: string, destId: s
                 apiClient.get(`/sync/mappings?dest_project_id=${destId}&dest_company_id=${destId}&entity_type=action_plan_company_template`)
             ]);
             return {
-                ...cRes.data.mappings,
-                ...pRes.data.mappings
-            };
+                ...(cRes.data.mappings ?? {}),
+                ...(pRes.data.mappings ?? {})
+            } as MappingRecord;
         },
         enabled: !!dstProjId && !!destId
     });
 
-    const comparisonData = useMemo<ActionPlanItem[]>(() => {
+    const comparisonData = useMemo<ComparedActionPlanItem[]>(() => {
         if (!srcTemplates) return [];
         return srcTemplates
-            .filter((st: any) => {
-                const title = st?.title || st?.name || '';
+            .filter((st) => {
+                const title = st.title || st.name || '';
                 return title.toLowerCase().includes(search.toLowerCase());
             })
-            .map((st: any) => {
-                const sTitle = st?.title || st?.name;
+            .map((st) => {
+                const sTitle = st.title || st.name;
                 const mapping = mappings?.[String(st.id)];
-                let match = null;
-                if (mapping) {
-                    match = dstTemplates?.find((dt: any) => String(dt.id) === String(mapping.dest_id));
+                let match: TemplateRecord | undefined;
+
+                if (mapping?.dest_id !== undefined) {
+                    match = dstTemplates?.find((dt) => String(dt.id) === String(mapping.dest_id));
                 }
                 if (!match && st.plan_template?.id) {
                     const cMapping = mappings?.[String(st.plan_template.id)];
-                    if (cMapping) {
-                        match = dstTemplates?.find((dt: any) => String(dt.id) === String(cMapping.dest_id));
+                    if (cMapping?.dest_id !== undefined) {
+                        match = dstTemplates?.find((dt) => String(dt.id) === String(cMapping.dest_id));
                     }
                 }
                 if (!match) {
-                    match = dstTemplates?.find((dt: any) => {
-                        const dTitle = dt?.title || dt?.name;
-                        return sTitle && dTitle && dTitle.toLowerCase().trim() === sTitle.toLowerCase().trim();
+                    match = dstTemplates?.find((dt) => {
+                        const dTitle = dt.title || dt.name;
+                        return !!sTitle && !!dTitle && dTitle.toLowerCase().trim() === sTitle.toLowerCase().trim();
                     });
                 }
-                return { 
-                    ...st, 
+                return {
+                    ...st,
                     name: sTitle,
                     isCompanyTemplate: !!(st.is_company_template || st.plan_template),
-                    destId: match?.id, 
+                    destId: match?.id,
                     destName: match?.title || match?.name,
-                    status: match ? 'Migrated' : 'Not Migrated' 
+                    status: match ? 'Migrated' : 'Not Migrated'
                 };
             });
     }, [srcTemplates, dstTemplates, mappings, search]);
@@ -334,7 +377,9 @@ const ProjectTemplatesTab = ({ sourceId, destId }: { sourceId: string, destId: s
     const { jobs, addJob } = useSyncQueueStore();
 
     const syncingItemsCount = useMemo(() => {
-        return Object.values(jobs).filter(j => j.jobId.startsWith('action_plan_project_template_') && (j.status === 'running' || j.status === 'pending')).length;
+        return Object.values(jobs).filter(
+            (j) => j.jobId.startsWith('action_plan_project_template_') && (j.status === 'running' || j.status === 'pending')
+        ).length;
     }, [jobs]);
 
     const isRunning = syncingItemsCount > 0;
@@ -342,7 +387,7 @@ const ProjectTemplatesTab = ({ sourceId, destId }: { sourceId: string, destId: s
     const handleSync = (sourceTemplateId: number) => {
         const jobId = `action_plan_project_template_${sourceTemplateId}`;
         addJob(jobId, async () => {
-             await apiClient.post('/action-plans/migrate-project-template', null, {
+            await apiClient.post('/action-plans/migrate-project-template', null, {
                 params: {
                     source_company_id: sourceId,
                     source_project_id: srcProjId,
@@ -357,12 +402,12 @@ const ProjectTemplatesTab = ({ sourceId, destId }: { sourceId: string, destId: s
         });
     };
 
-    const columns: ColumnsType<ActionPlanItem & { destName?: string }> = [
-        { 
-            title: 'Source Template', 
-            dataIndex: 'name', 
-            key: 'name', 
-            render: (t: string, r: any) => (
+    const columns: ColumnsType<ComparedActionPlanItem> = [
+        {
+            title: 'Source Template',
+            dataIndex: 'name',
+            key: 'name',
+            render: (t: string | undefined, r: ComparedActionPlanItem) => (
                 <Space>
                     <span className="font-semibold text-zinc-900">{t}</span>
                     <Tag color={r.isCompanyTemplate ? 'blue' : 'purple'} className="border-none text-[10px] font-bold uppercase py-0 px-2 rounded-full">
@@ -377,36 +422,45 @@ const ProjectTemplatesTab = ({ sourceId, destId }: { sourceId: string, destId: s
             width: 50,
             render: () => <ArrowRight className="w-4 h-4 text-zinc-300" />
         },
-        { 
-            title: 'Destination Template', 
-            dataIndex: 'destName', 
-            key: 'destName', 
-            render: (t: string) => t ? <span className="text-zinc-600">{t}</span> : <span className="text-zinc-400 italic">Not found</span> 
+        {
+            title: 'Destination Template',
+            dataIndex: 'destName',
+            key: 'destName',
+            render: (t: string | undefined) =>
+                t ? <span className="text-zinc-600">{t}</span> : <span className="text-zinc-400 italic">Not found</span>
         },
-        { 
-            title: 'Status', 
-            dataIndex: 'status', 
-            key: 'status', 
-            render: (s: string) => <Tag color={s === 'Migrated' ? 'green' : 'orange'}>{s}</Tag> 
+        {
+            title: 'Status',
+            dataIndex: 'status',
+            key: 'status',
+            render: (s: string) => <Tag color={s === 'Migrated' ? 'green' : 'orange'}>{s}</Tag>
         },
-        { 
-            title: 'Action', 
-            key: 'action', 
-            render: (_: any, r: ActionPlanItem) => {
+        {
+            title: 'Action',
+            key: 'action',
+            render: (_value: unknown, r: ComparedActionPlanItem) => {
                 const job = jobs[`action_plan_project_template_${r.id}`];
                 const isPending = job?.status === 'running' || job?.status === 'pending';
                 if (job?.status === 'pending') {
                     return <Tag color="orange">Waiting...</Tag>;
                 }
                 return (
-                    <Button 
-                        size="small" 
-                        icon={isPending ? <InfinityLoader size="xs" variant="rotate" /> : (r.status === 'Migrated' ? <RefreshCw className="w-3 h-3" /> : <Copy className="w-3 h-3" />)}
-                        onClick={() => handleSync(r.id)} 
+                    <Button
+                        size="small"
+                        icon={
+                            isPending ? (
+                                <InfinityLoader size="xs" variant="rotate" />
+                            ) : r.status === 'Migrated' ? (
+                                <RefreshCw className="w-3 h-3" />
+                            ) : (
+                                <Copy className="w-3 h-3" />
+                            )
+                        }
+                        onClick={() => handleSync(r.id)}
                         disabled={isPending || !hasPermission}
                     >
-                    {isPending ? 'Syncing...' : (r.status === 'Migrated' ? 'Resync' : 'Sync')}
-                </Button>
+                        {isPending ? 'Syncing...' : r.status === 'Migrated' ? 'Resync' : 'Sync'}
+                    </Button>
                 );
             }
         }
@@ -415,81 +469,77 @@ const ProjectTemplatesTab = ({ sourceId, destId }: { sourceId: string, destId: s
     return (
         <div className="space-y-6">
             {!hasPermission && (
-                <AccessRequestBanner 
-                    appSlug="action-plans" 
-                    companyId={destId} 
+                <AccessRequestBanner
+                    appSlug="action-plans"
+                    companyId={destId}
                     title="Project Templates Access Restricted"
                     description="You need 'Action Plans' migration permissions to perform this operation."
                 />
             )}
             <Card className="border-0 shadow-none" bodyStyle={{ padding: 0 }}>
-            <GlobalProjectSelector 
-                sourceCompanyId={sourceId} 
-                destCompanyId={destId} 
-                onSourceProjectChange={setSrcProjId}
-                onDestProjectChange={setDstProjId}
-            />
-            {srcProjId && dstProjId ? (
-                <>
-                    <div className="flex justify-between items-center mb-6 gap-4">
-                        <div className="flex gap-2 items-center">
-                            <Input 
-                                placeholder="Search templates by title..." 
-                                prefix={<Search className="w-4 h-4 text-zinc-400" />}
-                                className="max-w-xs h-10 rounded-lg"
-                                allowClear
-                                onChange={(e) => setSearch(e.target.value)}
-                            />
-                            <Button 
-                                icon={<RefreshCw className="w-4 h-4" />} 
-                                onClick={() => { refetchDest(); refetchMappings(); }}
-                                title="Refresh"
-                            />
+                <GlobalProjectSelector
+                    sourceCompanyId={sourceId}
+                    destCompanyId={destId}
+                    onSourceProjectChange={setSrcProjId}
+                    onDestProjectChange={setDstProjId}
+                />
+                {srcProjId && dstProjId ? (
+                    <>
+                        <div className="flex justify-between items-center mb-6 gap-4">
+                            <div className="flex gap-2 items-center">
+                                <Input
+                                    placeholder="Search templates by title..."
+                                    prefix={<Search className="w-4 h-4 text-zinc-400" />}
+                                    className="max-w-xs h-10 rounded-lg"
+                                    allowClear
+                                    onChange={(e) => setSearch(e.target.value)}
+                                />
+                                <Button icon={<RefreshCw className="w-4 h-4" />} onClick={() => { refetchDest(); refetchMappings(); }} title="Refresh" />
+                            </div>
+                            {selectedIds.length > 0 && (
+                                <Button
+                                    type="primary"
+                                    className="bg-orange-600 hover:bg-orange-700 border-none"
+                                    disabled={!hasPermission}
+                                    onClick={() => {
+                                        selectedIds.forEach((id) => handleSync(id));
+                                        setSelectedIds([]);
+                                    }}
+                                >
+                                    {isRunning ? `Syncing Queue (${syncingItemsCount})...` : `Migrate Selected Templates (${selectedIds.length})`}
+                                </Button>
+                            )}
                         </div>
-                        {selectedIds.length > 0 && (
-                            <Button 
-                                type="primary" 
-                                className="bg-orange-600 hover:bg-orange-700 border-none"
-                                disabled={!hasPermission}
-                                onClick={() => {
-                                    selectedIds.forEach(id => handleSync(id));
-                                    setSelectedIds([]);
-                                }}
-                            >
-                                {isRunning ? `Syncing Queue (${syncingItemsCount})...` : `Migrate Selected Templates (${selectedIds.length})`}
-                            </Button>
-                        )}
+                        <Table
+                            rowSelection={{
+                                selectedRowKeys: selectedIds,
+                                onChange: (keys: Key[]) => setSelectedIds(keys.map((k) => Number(k)))
+                            }}
+                            dataSource={comparisonData}
+                            columns={columns}
+                            rowKey="id"
+                            loading={(loadingSrc || loadingDst) ? { indicator: <InfinityLoader size="lg" /> } : false}
+                        />
+                    </>
+                ) : (
+                    <div className="py-20 text-center bg-zinc-50 rounded-2xl border border-dashed border-zinc-200 text-zinc-400">
+                        <Briefcase className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                        Please select both source and destination projects to compare templates.
                     </div>
-                    <Table 
-                        rowSelection={{
-                            selectedRowKeys: selectedIds,
-                            onChange: (keys: any) => setSelectedIds(keys as number[]),
-                        }}
-                        dataSource={comparisonData} 
-                        columns={columns}
-                        rowKey="id"
-                        loading={(loadingSrc || loadingDst) ? { indicator: <InfinityLoader size="lg" /> } : false}
-                    />
-                </>
-            ) : (
-                <div className="py-20 text-center bg-zinc-50 rounded-2xl border border-dashed border-zinc-200 text-zinc-400">
-                    <Briefcase className="w-12 h-12 mx-auto mb-4 opacity-20" />
-                    Please select both source and destination projects to compare templates.
-                </div>
-            )}
-        </Card>
+                )}
+            </Card>
         </div>
     );
 };
 
 // --- Sub-App 3: Project Plans ---
-const ProjectPlansTab = ({ sourceId, destId }: { sourceId: string, destId: string }) => {
+const ProjectPlansTab = ({ sourceId, destId }: { sourceId: string; destId: string }) => {
     const [srcProjId, setSrcProjId] = useState<number | null>(null);
     const [dstProjId, setDstProjId] = useState<number | null>(null);
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
     const [search, setSearch] = useState('');
 
-    const { data: myPermissions } = useQuery({
+    const { data: myPermissions } = useQuery<string[]>({
         queryKey: ['my-permissions', destId],
         queryFn: async () => {
             const res = await apiClient.get('/admin/my-permissions', {
@@ -502,29 +552,31 @@ const ProjectPlansTab = ({ sourceId, destId }: { sourceId: string, destId: strin
 
     const hasPermission = myPermissions?.includes('action-plans');
 
-    const { data: srcPlans, isLoading: loadingSrc } = useQuery({
+    const { data: srcPlans, isLoading: loadingSrc } = useQuery<PlanRecord[]>({
         queryKey: ['project-plans-src', srcProjId],
         queryFn: async () => {
             const res = await apiClient.get(`/action-plans/project/${srcProjId}/plans/source?company_id=${sourceId}`);
-            return res.data;
+            return res.data as PlanRecord[];
         },
         enabled: !!srcProjId
     });
 
-    const { data: dstPlans, isLoading: loadingDst, refetch: refetchDest } = useQuery({
+    const { data: dstPlans, isLoading: loadingDst, refetch: refetchDest } = useQuery<PlanRecord[]>({
         queryKey: ['project-plans-dst', dstProjId],
         queryFn: async () => {
             const res = await apiClient.get(`/action-plans/project/${dstProjId}/plans?company_id=${destId}`);
-            return res.data;
+            return res.data as PlanRecord[];
         },
         enabled: !!dstProjId
     });
 
-    const { data: mappings, refetch: refetchMappings } = useQuery({
+    const { data: mappings, refetch: refetchMappings } = useQuery<MappingRecord>({
         queryKey: ['mappings-project-plans', dstProjId],
         queryFn: async () => {
-            const res = await apiClient.get(`/sync/mappings?dest_project_id=${dstProjId}&dest_company_id=${destId}&entity_type=action_plan_project_plan`);
-            return res.data.mappings;
+            const res = await apiClient.get(
+                `/sync/mappings?dest_project_id=${dstProjId}&dest_company_id=${destId}&entity_type=action_plan_project_plan`
+            );
+            return (res.data.mappings ?? {}) as MappingRecord;
         },
         enabled: !!dstProjId
     });
@@ -532,7 +584,9 @@ const ProjectPlansTab = ({ sourceId, destId }: { sourceId: string, destId: strin
     const { jobs, addJob } = useSyncQueueStore();
 
     const syncingItemsCount = useMemo(() => {
-        return Object.values(jobs).filter(j => j.jobId.startsWith('action_plan_project_plan_') && (j.status === 'running' || j.status === 'pending')).length;
+        return Object.values(jobs).filter(
+            (j) => j.jobId.startsWith('action_plan_project_plan_') && (j.status === 'running' || j.status === 'pending')
+        ).length;
     }, [jobs]);
 
     const isRunning = syncingItemsCount > 0;
@@ -540,7 +594,7 @@ const ProjectPlansTab = ({ sourceId, destId }: { sourceId: string, destId: strin
     const handleSync = (sourcePlanId: number) => {
         const jobId = `action_plan_project_plan_${sourcePlanId}`;
         addJob(jobId, async () => {
-             await apiClient.post('/action-plans/migrate-project-plan', null, {
+            await apiClient.post('/action-plans/migrate-project-plan', null, {
                 params: {
                     source_company_id: sourceId,
                     source_project_id: srcProjId,
@@ -555,45 +609,47 @@ const ProjectPlansTab = ({ sourceId, destId }: { sourceId: string, destId: strin
         });
     };
 
-    const comparisonData = useMemo<ActionPlanItem[]>(() => {
+    const comparisonData = useMemo<ComparedActionPlanItem[]>(() => {
         if (!srcPlans) return [];
         return srcPlans
-            .filter((sp: any) => {
-                const title = sp?.title || sp?.name || '';
+            .filter((sp) => {
+                const title = sp.title || '';
                 return title.toLowerCase().includes(search.toLowerCase());
             })
-            .map((sp: any) => {
+            .map((sp) => {
                 const mapping = mappings?.[String(sp.id)];
-                let match = null;
-                if (mapping) {
-                    match = dstPlans?.find((dp: any) => String(dp.id) === String(mapping.dest_id));
+                let match: PlanRecord | undefined;
+
+                if (mapping?.dest_id !== undefined) {
+                    match = dstPlans?.find((dp) => String(dp.id) === String(mapping.dest_id));
                 }
                 if (!match) {
-                    match = dstPlans?.find((dp: any) => {
-                        return dp && dp.title && sp.title && dp.title.toLowerCase().trim() === sp.title.toLowerCase().trim();
+                    match = dstPlans?.find((dp) => {
+                        return !!dp?.title && !!sp.title && dp.title.toLowerCase().trim() === sp.title.toLowerCase().trim();
                     });
                 }
-                return { 
-                    ...sp, 
+                return {
+                    ...sp,
+                    name: sp.title,
                     destName: match?.title,
-                    status: match ? 'Migrated' : 'Not Migrated' 
+                    status: match ? 'Migrated' : 'Not Migrated'
                 };
             });
     }, [srcPlans, dstPlans, mappings, search]);
 
-    const columns: ColumnsType<ActionPlanItem & { destName?: string }> = [
-        { 
-            title: 'Number', 
-            dataIndex: 'plan_number', 
-            key: 'plan_number', 
+    const columns: ColumnsType<ComparedActionPlanItem> = [
+        {
+            title: 'Number',
+            dataIndex: 'plan_number',
+            key: 'plan_number',
             width: 100,
-            render: (t: string, r: any) => <span>{t || r.number || '-'}</span>
+            render: (t: string | undefined, r: ComparedActionPlanItem) => <span>{t || r.number || '-'}</span>
         },
-        { 
-            title: 'Source Plan', 
-            dataIndex: 'title', 
-            key: 'title', 
-            render: (t: string) => <span className="font-semibold text-zinc-900">{t}</span> 
+        {
+            title: 'Source Plan',
+            dataIndex: 'title',
+            key: 'title',
+            render: (t: string | undefined) => <span className="font-semibold text-zinc-900">{t}</span>
         },
         {
             title: '',
@@ -601,35 +657,44 @@ const ProjectPlansTab = ({ sourceId, destId }: { sourceId: string, destId: strin
             width: 50,
             render: () => <ArrowRight className="w-4 h-4 text-zinc-300" />
         },
-        { 
-            title: 'Destination Plan', 
-            dataIndex: 'destName', 
-            key: 'destName', 
-            render: (t: string) => t ? <span className="text-zinc-600">{t}</span> : <span className="text-zinc-400 italic">Not Migrated</span> 
+        {
+            title: 'Destination Plan',
+            dataIndex: 'destName',
+            key: 'destName',
+            render: (t: string | undefined) =>
+                t ? <span className="text-zinc-600">{t}</span> : <span className="text-zinc-400 italic">Not Migrated</span>
         },
-        { 
-            title: 'Status', 
-            dataIndex: 'status', 
-            key: 'status', 
-            render: (s: string) => <Tag color={s === 'Migrated' ? 'green' : 'orange'}>{s}</Tag> 
+        {
+            title: 'Status',
+            dataIndex: 'status',
+            key: 'status',
+            render: (s: string) => <Tag color={s === 'Migrated' ? 'green' : 'orange'}>{s}</Tag>
         },
-        { 
-            title: 'Action', 
-            key: 'action', 
-            render: (_: any, r: ActionPlanItem) => {
+        {
+            title: 'Action',
+            key: 'action',
+            render: (_value: unknown, r: ComparedActionPlanItem) => {
                 const job = jobs[`action_plan_project_plan_${r.id}`];
                 const isPending = job?.status === 'running' || job?.status === 'pending';
                 if (job?.status === 'pending') {
                     return <Tag color="orange">Waiting...</Tag>;
                 }
                 return (
-                    <Button 
-                        size="small" 
-                        icon={isPending ? <InfinityLoader size="xs" variant="rotate" /> : (r.status === 'Migrated' ? <RefreshCw className="w-3 h-3" /> : <Copy className="w-3 h-3" />)}
-                        onClick={() => handleSync(r.id)} 
+                    <Button
+                        size="small"
+                        icon={
+                            isPending ? (
+                                <InfinityLoader size="xs" variant="rotate" />
+                            ) : r.status === 'Migrated' ? (
+                                <RefreshCw className="w-3 h-3" />
+                            ) : (
+                                <Copy className="w-3 h-3" />
+                            )
+                        }
+                        onClick={() => handleSync(r.id)}
                         disabled={isPending || !hasPermission}
                     >
-                        {isPending ? 'Migrating...' : (r.status === 'Migrated' ? 'Resync' : 'Migrate')}
+                        {isPending ? 'Migrating...' : r.status === 'Migrated' ? 'Resync' : 'Migrate'}
                     </Button>
                 );
             }
@@ -639,69 +704,65 @@ const ProjectPlansTab = ({ sourceId, destId }: { sourceId: string, destId: strin
     return (
         <div className="space-y-6">
             {!hasPermission && (
-                <AccessRequestBanner 
-                    appSlug="action-plans" 
-                    companyId={destId} 
+                <AccessRequestBanner
+                    appSlug="action-plans"
+                    companyId={destId}
                     title="Project Plans Access Restricted"
                     description="You need 'Action Plans' migration permissions to perform this operation."
                 />
             )}
             <Card className="border-0 shadow-none" bodyStyle={{ padding: 0 }}>
-            <GlobalProjectSelector 
-                sourceCompanyId={sourceId} 
-                destCompanyId={destId} 
-                onSourceProjectChange={setSrcProjId}
-                onDestProjectChange={setDstProjId}
-            />
-            {srcProjId && dstProjId ? (
-                <>
-                    <div className="flex justify-between items-center mb-6 gap-4">
-                        <div className="flex gap-2 items-center">
-                            <Input 
-                                placeholder="Search plans by title..." 
-                                prefix={<Search className="w-4 h-4 text-zinc-400" />}
-                                className="max-w-xs h-10 rounded-lg"
-                                allowClear
-                                onChange={(e) => setSearch(e.target.value)}
-                            />
-                            <Button 
-                                icon={<RefreshCw className="w-4 h-4" />} 
-                                onClick={() => { refetchDest(); refetchMappings(); }}
-                                title="Refresh"
-                            />
+                <GlobalProjectSelector
+                    sourceCompanyId={sourceId}
+                    destCompanyId={destId}
+                    onSourceProjectChange={setSrcProjId}
+                    onDestProjectChange={setDstProjId}
+                />
+                {srcProjId && dstProjId ? (
+                    <>
+                        <div className="flex justify-between items-center mb-6 gap-4">
+                            <div className="flex gap-2 items-center">
+                                <Input
+                                    placeholder="Search plans by title..."
+                                    prefix={<Search className="w-4 h-4 text-zinc-400" />}
+                                    className="max-w-xs h-10 rounded-lg"
+                                    allowClear
+                                    onChange={(e) => setSearch(e.target.value)}
+                                />
+                                <Button icon={<RefreshCw className="w-4 h-4" />} onClick={() => { refetchDest(); refetchMappings(); }} title="Refresh" />
+                            </div>
+                            {selectedIds.length > 0 && (
+                                <Button
+                                    type="primary"
+                                    className="bg-orange-600 hover:bg-orange-700 border-none"
+                                    disabled={!hasPermission}
+                                    onClick={() => {
+                                        selectedIds.forEach((id) => handleSync(id));
+                                        setSelectedIds([]);
+                                    }}
+                                >
+                                    {isRunning ? `Syncing Queue (${syncingItemsCount})...` : `Migrate Selected Plans (${selectedIds.length})`}
+                                </Button>
+                            )}
                         </div>
-                        {selectedIds.length > 0 && (
-                            <Button 
-                                type="primary" 
-                                className="bg-orange-600 hover:bg-orange-700 border-none"
-                                disabled={!hasPermission}
-                                onClick={() => {
-                                    selectedIds.forEach(id => handleSync(id));
-                                    setSelectedIds([]);
-                                }}
-                            >
-                                {isRunning ? `Syncing Queue (${syncingItemsCount})...` : `Migrate Selected Plans (${selectedIds.length})`}
-                            </Button>
-                        )}
+                        <Table
+                            rowSelection={{
+                                selectedRowKeys: selectedIds,
+                                onChange: (keys: Key[]) => setSelectedIds(keys.map((k) => Number(k)))
+                            }}
+                            dataSource={comparisonData}
+                            columns={columns}
+                            rowKey="id"
+                            loading={(loadingSrc || loadingDst) ? { indicator: <InfinityLoader size="lg" /> } : false}
+                        />
+                    </>
+                ) : (
+                    <div className="py-20 text-center bg-zinc-50 rounded-2xl border border-dashed border-zinc-200 text-zinc-400">
+                        <ClipboardList className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                        Please select both source and destination projects to compare plans.
                     </div>
-                    <Table 
-                        rowSelection={{
-                            selectedRowKeys: selectedIds,
-                            onChange: (keys: any) => setSelectedIds(keys as number[]),
-                        }}
-                        dataSource={comparisonData} 
-                        columns={columns}
-                        rowKey="id"
-                        loading={(loadingSrc || loadingDst) ? { indicator: <InfinityLoader size="lg" /> } : false}
-                    />
-                </>
-            ) : (
-                <div className="py-20 text-center bg-zinc-50 rounded-2xl border border-dashed border-zinc-200 text-zinc-400">
-                    <ClipboardList className="w-12 h-12 mx-auto mb-4 opacity-20" />
-                    Please select both source and destination projects to compare plans.
-                </div>
-            )}
-        </Card>
+                )}
+            </Card>
         </div>
     );
 };
@@ -723,7 +784,7 @@ export const ActionPlanMigration = () => {
                     Company Templates
                 </Space>
             ),
-            children: <CompanyTemplatesTab sourceId={sourceCompanyId} destId={destCompanyId} />,
+            children: <CompanyTemplatesTab sourceId={sourceCompanyId} destId={destCompanyId} />
         },
         {
             key: '2',
@@ -733,7 +794,7 @@ export const ActionPlanMigration = () => {
                     Project Templates
                 </Space>
             ),
-            children: <ProjectTemplatesTab sourceId={sourceCompanyId} destId={destCompanyId} />,
+            children: <ProjectTemplatesTab sourceId={sourceCompanyId} destId={destCompanyId} />
         },
         {
             key: '3',
@@ -743,8 +804,8 @@ export const ActionPlanMigration = () => {
                     Project Plans
                 </Space>
             ),
-            children: <ProjectPlansTab sourceId={sourceCompanyId} destId={destCompanyId} />,
-        },
+            children: <ProjectPlansTab sourceId={sourceCompanyId} destId={destCompanyId} />
+        }
     ];
 
     return (
@@ -767,12 +828,7 @@ export const ActionPlanMigration = () => {
                     </Space>
                 </div>
 
-                <Tabs 
-                    defaultActiveKey="1" 
-                    items={items} 
-                    className="action-plan-tabs"
-                    size="large"
-                />
+                <Tabs defaultActiveKey="1" items={items} className="action-plan-tabs" size="large" />
             </div>
 
             <style>{`

@@ -12,6 +12,18 @@ interface ProjectData {
   is_active: boolean;
 }
 
+interface MappingInfo {
+  dest_id: number | string;
+  [key: string]: unknown;
+}
+
+interface MapPayload {
+  source_project_id: number;
+  dest_project_id: number;
+  source_name: string;
+  dest_name: string;
+}
+
 export const ProjectSetup: React.FC = () => {
   const sourceCompanyId = sessionStorage.getItem('source_company_id');
   const destCompanyId = sessionStorage.getItem('dest_company_id');
@@ -45,13 +57,13 @@ export const ProjectSetup: React.FC = () => {
       const res = await apiClient.get(`/projects/mappings`, {
         params: { dest_company_id: destCompanyId }
       });
-      return res.data as Record<string, any>;
+      return res.data as Record<string, MappingInfo>;
     },
     enabled: !!destCompanyId
   });
 
   const mapMutation = useMutation({
-    mutationFn: async (payload: { source_project_id: number; dest_project_id: number; source_name: string; dest_name: string }) => {
+    mutationFn: async (payload: MapPayload) => {
       return await apiClient.post('/projects/map', {
         source_company_id: Number(sourceCompanyId),
         dest_company_id: Number(destCompanyId),
@@ -65,8 +77,16 @@ export const ProjectSetup: React.FC = () => {
       message.success('Project mapped successfully');
       refetchMappings();
     },
-    onError: (err: any) => {
-      message.error(err.response?.data?.detail || 'Failed to map project');
+    onError: (err: unknown) => {
+      const errorMessage =
+        typeof err === 'object' &&
+        err !== null &&
+        'response' in err &&
+        typeof (err as { response?: { data?: { detail?: string } } }).response?.data?.detail === 'string'
+          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : 'Failed to map project';
+
+      message.error(errorMessage);
     }
   });
 
@@ -87,7 +107,7 @@ export const ProjectSetup: React.FC = () => {
       title: 'Global Mapping Status',
       key: 'status',
       width: '15%',
-      render: (_: any, record: ProjectData) => {
+      render: (_: unknown, record: ProjectData) => {
         const isMapped = mappings[record.id.toString()];
         return isMapped ? (
           <Tag color="success" icon={<Link2 size={12} className="mr-1 inline" />}>Mapped</Tag>
@@ -100,25 +120,29 @@ export const ProjectSetup: React.FC = () => {
       title: 'Destination Project (To)',
       key: 'destination',
       width: '35%',
-      render: (_: any, record: ProjectData) => {
+      render: (_: unknown, record: ProjectData) => {
         const mappingInfo = mappings[record.id.toString()];
         const mappedDestId = mappingInfo ? Number(mappingInfo.dest_id) : undefined;
-        
+        const activeDestProjects = (destProjects || []).filter((p) => p.is_active);
+
         return (
           <Select
             className="w-full"
             placeholder="Select destination project"
             value={mappedDestId}
-            options={(destProjects || []).filter(p => p.is_active).map(p => ({
+            options={activeDestProjects.map((p) => ({
               label: p.name,
               value: p.id
             }))}
-            onChange={(val, option: any) => {
+            onChange={(val: number) => {
+              const selectedProject = activeDestProjects.find((p) => p.id === val);
+              if (!selectedProject) return;
+
               mapMutation.mutate({
                 source_project_id: record.id,
                 dest_project_id: val,
                 source_name: record.name,
-                dest_name: option.label
+                dest_name: selectedProject.name
               });
             }}
             loading={mapMutation.isPending && mapMutation.variables?.source_project_id === record.id}
@@ -149,12 +173,12 @@ export const ProjectSetup: React.FC = () => {
           Centralized Project Mapping
         </Title>
         <Paragraph className="text-zinc-400">
-          Map your source projects from <Tag color="orange">{sourceCompanyName}</Tag> to existing projects in <Tag color="blue">{destCompanyName}</Tag>. 
+          Map your source projects from <Tag color="orange">{sourceCompanyName}</Tag> to existing projects in <Tag color="blue">{destCompanyName}</Tag>.
           This is a global mapping: once mapped here, the destination project is locked and automatically applied across all migration sub-tools (Action Plans, RFIs, etc.).
         </Paragraph>
       </div>
 
-      <Card 
+      <Card
         className="bg-zinc-900 border-zinc-800 shadow-xl overflow-hidden rounded-xl"
         styles={{ body: { padding: 0 } }}
       >

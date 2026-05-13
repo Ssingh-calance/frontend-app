@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Card, Table, Tag, Button, Switch, message, Space, Typography, Divider, Tabs, Avatar, Badge, Tooltip, Input } from 'antd';
+import type { ColumnsType } from 'antd/es/table';
 import {
   User,
   ShieldCheckIcon,
@@ -10,6 +11,7 @@ import {
   Search
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import { useAuthStore } from '../store/authStore';
 
@@ -33,6 +35,30 @@ interface AccessRequest {
   created_at: string;
 }
 
+interface AppKey {
+  key: string;
+  label: string;
+}
+
+const appKeys: AppKey[] = [
+  { key: 'project-admin', label: 'Project Mapping' },
+  { key: 'action-plans', label: 'Action Plans' },
+  { key: 'documents', label: 'Documents' },
+  { key: 'daily-log', label: 'Daily Log' },
+  { key: 'inspections', label: 'Inspections' },
+  { key: 'rfis', label: 'RFIs' },
+  { key: 'submittals', label: 'Submittals' },
+  { key: 'specifications', label: 'Specs' },
+  { key: 'correspondence', label: 'Correspondence' },
+  { key: 'photos', label: 'Photos' },
+  { key: 'drawings', label: 'Drawings' },
+  { key: 'rfp', label: 'RFP' },
+  { key: 'pcos', label: 'PCOs' },
+  { key: 'prime-contracts', label: 'Prime Contracts' },
+  { key: 'invoices', label: 'Invoices' },
+  { key: 'budgets', label: 'Budgets' }
+];
+
 export const AdminPanel: React.FC = () => {
   const navigate = useNavigate();
   const { companyId: sessionCompanyId } = useAuthStore();
@@ -40,121 +66,96 @@ export const AdminPanel: React.FC = () => {
   const targetCompanyId = destCompanyId || sessionCompanyId;
   const targetCompanyName = sessionStorage.getItem('dest_company_name') || sessionStorage.getItem('CompanyName') || 'This Company';
 
-  const [users, setUsers] = useState<ProcoreUser[]>([]);
-  const [requests, setRequests] = useState<AccessRequest[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [reqLoading, setReqLoading] = useState(false);
   const [searchText, setSearchText] = useState('');
 
-  const fetchUsers = async () => {
-    try {
-      setLoading(true);
+  const {
+    data: users = [],
+    isLoading: loading,
+    refetch: refetchUsers
+  } = useQuery<ProcoreUser[]>({
+    queryKey: ['admin-users', targetCompanyId],
+    enabled: !!targetCompanyId,
+    queryFn: async () => {
       const response = await apiClient.get('/admin/users', {
         params: { company_id: targetCompanyId }
       });
-      setUsers(response.data);
-    } catch (err) {
-      console.error('Failed to fetch users:', err);
-      message.error('Failed to load company users');
-    } finally {
-      setLoading(false);
+      return response.data as ProcoreUser[];
     }
-  };
+  });
 
-  const fetchRequests = async () => {
-    try {
-      setReqLoading(true);
+  const {
+    data: requests = [],
+    isLoading: reqLoading,
+    refetch: refetchRequests
+  } = useQuery<AccessRequest[]>({
+    queryKey: ['admin-access-requests', targetCompanyId],
+    enabled: !!targetCompanyId,
+    queryFn: async () => {
       const response = await apiClient.get('/admin/access-requests', {
         params: { company_id: targetCompanyId, status: 'pending' }
       });
-      setRequests(response.data);
-    } catch (err) {
-      console.error('Failed to fetch requests:', err);
-    } finally {
-      setReqLoading(false);
+      return response.data as AccessRequest[];
     }
-  };
-
-  useEffect(() => {
-    if (targetCompanyId) {
-      fetchUsers();
-      fetchRequests();
-    }
-  }, [targetCompanyId]);
+  });
 
   const handlePermissionToggle = async (userId: string, appKey: string, checked: boolean) => {
-    const user = users.find(u => u.id === userId);
+    const user = users.find((u) => u.id === userId);
     if (!user) return;
 
     let newAllowed = [...user.allowed_apps];
     if (checked) {
       if (!newAllowed.includes(appKey)) newAllowed.push(appKey);
     } else {
-      newAllowed = newAllowed.filter(a => a !== appKey);
+      newAllowed = newAllowed.filter((a) => a !== appKey);
     }
 
     try {
       await apiClient.put('/admin/permissions', {
         user_id: userId,
-        company_id: parseInt(targetCompanyId || '0'),
+        company_id: parseInt(String(targetCompanyId || '0'), 10),
         allowed_apps: newAllowed
       });
 
-      // Update local state
-      setUsers((prev: ProcoreUser[]) => prev.map((u: ProcoreUser) => u.id === userId ? { ...u, allowed_apps: newAllowed } : u));
       message.success(`Permission updated for ${user.name}`);
-    } catch (err) {
+      await Promise.all([refetchUsers(), refetchRequests()]);
+    } catch {
       message.error('Failed to update permission');
     }
   };
 
   const handleResolveRequest = async (requestId: number, status: 'approved' | 'denied') => {
     try {
-      await apiClient.post(`/admin/access-requests/resolve/${requestId}`, {
-        status
-      }, {
-        params: { company_id: targetCompanyId }
-      });
+      await apiClient.post(
+        `/admin/access-requests/resolve/${requestId}`,
+        { status },
+        { params: { company_id: targetCompanyId } }
+      );
 
       message.success(`Request ${status} successfully`);
-      fetchRequests();
-      if (status === 'approved') fetchUsers(); // Refresh permissions list
-    } catch (err) {
+      await refetchRequests();
+      if (status === 'approved') await refetchUsers();
+    } catch {
       message.error('Failed to resolve request');
     }
   };
 
-  const appKeys = [
-    { key: 'project-admin', label: 'Project Mapping' },
-    { key: 'action-plans', label: 'Action Plans' },
-    { key: 'documents', label: 'Documents' },
-    { key: 'daily-log', label: 'Daily Log' },
-    { key: 'inspections', label: 'Inspections' },
-    { key: 'rfis', label: 'RFIs' },
-    { key: 'submittals', label: 'Submittals' },
-    { key: 'specifications', label: 'Specs' },
-    { key: 'correspondence', label: 'Correspondence' },
-    { key: 'photos', label: 'Photos' },
-    { key: 'drawings', label: 'Drawings' },
-    { key: 'rfp', label: 'RFP' },
-    { key: 'pcos', label: 'PCOs' },
-    { key: 'prime-contracts', label: 'Prime Contracts' },
-    { key: 'invoices', label: 'Invoices' },
-    { key: 'budgets', label: 'Budgets' }
-  ];
-
-  const filteredUsers = users.filter(user => 
-    user.name.toLowerCase().includes(searchText.toLowerCase()) || 
-    user.email.toLowerCase().includes(searchText.toLowerCase())
+  const filteredUsers = useMemo(
+    () =>
+      users.filter(
+        (user) =>
+          user.name.toLowerCase().includes(searchText.toLowerCase()) ||
+          user.email.toLowerCase().includes(searchText.toLowerCase())
+      ),
+    [users, searchText]
   );
 
-  const columns = [
+  const columns: ColumnsType<ProcoreUser> = [
     {
       title: 'User',
       key: 'user',
-      fixed: 'left' as const,
+      fixed: 'left',
       width: 250,
-      render: (_: any, record: ProcoreUser) => (
+      render: (_value: unknown, record: ProcoreUser) => (
         <Space>
           <Avatar icon={<User className="w-3 h-3" />} size="small" />
           <div>
@@ -165,19 +166,19 @@ export const AdminPanel: React.FC = () => {
         </Space>
       )
     },
-    ...appKeys.map(app => ({
+    ...appKeys.map((app) => ({
       title: app.label,
       key: app.key,
       align: 'center' as const,
       width: 120,
-      render: (_: any, record: ProcoreUser) => (
+      render: (_value: unknown, record: ProcoreUser) => (
         <div className="flex items-center justify-center gap-2">
           <Switch
             size="small"
             checked={record.allowed_apps.includes(app.key)}
-            onChange={(checked: boolean) => handlePermissionToggle(record.id, app.key, checked)}
+            onChange={(checked: boolean) => void handlePermissionToggle(record.id, app.key, checked)}
           />
-          {requests.some(r => r.user_id === record.id && r.app_slug === app.key && r.status === 'pending') && (
+          {requests.some((r) => r.user_id === record.id && r.app_slug === app.key && r.status === 'pending') && (
             <Tooltip title="Access Requested">
               <Badge status="processing" color="blue" />
             </Tooltip>
@@ -204,17 +205,17 @@ export const AdminPanel: React.FC = () => {
                 prefix={<Search size={16} className="text-zinc-400" />}
                 className="max-w-xs"
                 value={searchText}
-                onChange={e => setSearchText(e.target.value)}
+                onChange={(e) => setSearchText(e.target.value)}
                 allowClear
               />
-              <Button icon={<RefreshCwIcon size={14} className="mr-2" />} onClick={fetchUsers} loading={loading}>
-                  Refresh Users
+              <Button icon={<RefreshCwIcon size={14} className="mr-2" />} onClick={() => void refetchUsers()} loading={loading}>
+                Refresh Users
               </Button>
             </div>
           </div>
-          <Table 
-            columns={columns} 
-            dataSource={filteredUsers} 
+          <Table
+            columns={columns}
+            dataSource={filteredUsers}
             loading={loading}
             rowKey="id"
             scroll={{ x: 1200 }}
@@ -240,18 +241,18 @@ export const AdminPanel: React.FC = () => {
                 Manage pending permissions for: <span className="font-bold">{targetCompanyName || targetCompanyId}</span>
               </Text>
             </div>
-            <Button icon={<RefreshCwIcon size={14} className="mr-2" />} onClick={fetchRequests} loading={reqLoading}>
+            <Button icon={<RefreshCwIcon size={14} className="mr-2" />} onClick={() => void refetchRequests()} loading={reqLoading}>
               Refresh Requests
             </Button>
           </div>
-          <Table
+          <Table<AccessRequest>
             dataSource={requests}
             loading={reqLoading}
             rowKey="id"
             columns={[
               {
                 title: 'User',
-                render: (_, r) => (
+                render: (_value: unknown, r: AccessRequest) => (
                   <Space>
                     <Avatar icon={<User className="w-3 h-3" />} size="small" />
                     <div>
@@ -264,24 +265,24 @@ export const AdminPanel: React.FC = () => {
               {
                 title: 'App Requested',
                 dataIndex: 'app_slug',
-                render: (slug) => <Tag color="blue">{slug.toUpperCase()}</Tag>
+                render: (slug: string) => <Tag color="blue">{slug.toUpperCase()}</Tag>
               },
               {
                 title: 'Date',
                 dataIndex: 'created_at',
-                render: (date) => <Text type="secondary" className="text-xs">{new Date(date).toLocaleDateString()}</Text>
+                render: (date: string) => <Text type="secondary" className="text-xs">{new Date(date).toLocaleDateString()}</Text>
               },
               {
                 title: 'Actions',
                 align: 'right',
-                render: (_, r) => (
+                render: (_value: unknown, r: AccessRequest) => (
                   <Space>
                     <Button
                       type="primary"
                       size="small"
                       icon={<CheckCircle size={14} className="mr-1" />}
                       className="bg-emerald-600 hover:bg-emerald-700"
-                      onClick={() => handleResolveRequest(r.id, 'approved')}
+                      onClick={() => void handleResolveRequest(r.id, 'approved')}
                     >
                       Approve
                     </Button>
@@ -289,7 +290,7 @@ export const AdminPanel: React.FC = () => {
                       danger
                       size="small"
                       icon={<XCircle size={14} className="mr-1" />}
-                      onClick={() => handleResolveRequest(r.id, 'denied')}
+                      onClick={() => void handleResolveRequest(r.id, 'denied')}
                     >
                       Deny
                     </Button>
