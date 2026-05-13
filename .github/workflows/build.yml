@@ -43,5 +43,3 @@ jobs:
 
       dockerfile_path: frontend/Dockerfile
 
-    secrets:
-      IMAGE_REGISTRY_PASSWORD: ${{ secrets.IMAGE_REGISTRY_PASSWORD }}
