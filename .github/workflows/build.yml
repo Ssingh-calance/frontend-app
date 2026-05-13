@@ -1,50 +1,48 @@
-name: Docker Build and Push
+name: Build and push to GHCR
 
 on:
   push:
     branches:
       - main
 
-  pull_request:
-    branches:
-      - main
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+-rc[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-*"
+      - "v[0-9]+.[0-9]+"
+      - "v*"
+
+  workflow_dispatch:
 
 permissions:
   contents: read
   packages: write
 
+concurrency:
+  group: calance-${{ github.workflow }}-${{ github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
-  docker:
-    runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+  build-and-push-dockerimages:
+    strategy:
+      fail-fast: false
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
+      matrix:
+        project: [frontend]
 
-      - name: Install Dependencies
-        working-directory: frontend
-        run: npm install
+    uses: Calance-US/calance-workflows/.github/workflows/build.yml@v3.0.0
 
-      - name: Run Lint
-        working-directory: frontend
-        run: npm run lint
+    with:
+      image_name: calance-us/${{ matrix.project }}
 
-      - name: Build Frontend
-        working-directory: frontend
-        run: npm run build
+      image_registry: ${{ vars.IMAGE_REGISTRY }}
 
-      - name: Login to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      image_registry_username: ${{ vars.IMAGE_REGISTRY_USERNAME }}
 
-      - name: Build Docker Image
-        run: docker build -t ghcr.io/${{ github.repository }}:latest ./frontend
+      docker_context_path: frontend/
 
-      - name: Push Docker Image
-        run: docker push ghcr.io/${{ github.repository }}:latest
+      dockerfile_path: frontend/Dockerfile
+
+    secrets:
+      IMAGE_REGISTRY_PASSWORD: ${{ secrets.IMAGE_REGISTRY_PASSWORD }}
