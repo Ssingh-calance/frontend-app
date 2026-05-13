@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-primary: oklch(0.6 0.15 250);
+  /* Blue */
+  --color-surface: oklch(0.98 0 0);
+  /* Off white */
+  --color-surface-dark: oklch(0.15 0 0);
+  /* Dark gray */
+
+  --font-sans: 'Inter', system-ui, sans-serif;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-surface);
+    color: var(--color-surface-dark);
+  }
+}
