@@ -29,7 +29,7 @@ jobs:
 
     with:
     
-      image_name: calance-us/${{ matrix.project }}
+      image_name: ${{ matrix.project }}
 
       image_registry: ${{ vars.IMAGE_REGISTRY }}
 
